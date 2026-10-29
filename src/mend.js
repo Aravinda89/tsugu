@@ -11,7 +11,7 @@ export const HOVER = 0.32;
 const RETURN_TIME = 1.25;
 const TAP_SLOP = 56; // px: a near miss on a small piece still counts
 
-export function createMend({ camera, canvas, drop, onAllHome }) {
+export function createMend({ camera, canvas, drop, onHome, onAllHome }) {
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const assembly = new THREE.Matrix4();
@@ -30,7 +30,8 @@ export function createMend({ camera, canvas, drop, onAllHome }) {
     assemblyMatrix();
     assemblyQuat.setFromRotationMatrix(assembly);
     rng = createRandom(hashSeed(seed, 'mend'));
-    pieces = drop.shards.map((shard) => ({ shard, state: 'waiting' }));
+    // The lost piece is not coming back; its place will be filled with gold.
+    pieces = drop.shards.filter((s) => !s.lost).map((shard) => ({ shard, state: 'waiting' }));
     home = 0;
     drop.beginGather();
   }
@@ -96,6 +97,7 @@ export function createMend({ camera, canvas, drop, onAllHome }) {
       onComplete: () => {
         active.delete(t);
         piece.state = 'home';
+        onHome?.();
         if (++home === pieces.length) onAllHome?.();
       },
     });

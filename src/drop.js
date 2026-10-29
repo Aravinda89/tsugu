@@ -121,17 +121,22 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
     return [
       { center: v(0, -0.5, 0), half: v(20, 0.5, 20) },
       { center: v(standPos.x, STAND_TOP / 2, standPos.z), half: v(station.width / 2, STAND_TOP / 2, station.depth / 2) },
-      { center: v(-W - 0.1, 1, 0), half: v(0.1, 2, 4) },
-      { center: v(W + 0.1, 1, 0), half: v(0.1, 2, 4) },
-      { center: v(0, 1, -1.3), half: v(4, 2, 0.1) },
-      { center: v(0, 1, 1.25), half: v(4, 2, 0.1) },
+      { center: v(-W - 0.1, 1, 0), half: v(0.1, 2, 4), wall: true },
+      { center: v(W + 0.1, 1, 0), half: v(0.1, 2, 4), wall: true },
+      { center: v(0, 1, -1.3), half: v(4, 2, 0.1), wall: true },
+      { center: v(0, 1, 1.25), half: v(4, 2, 0.1), wall: true },
     ];
   }
 
   // The first contact after letting go always breaks it (there is no way to
-  // fail); a gentle landing still breaks with at least BREAK_SPEED.
+  // fail); a gentle landing still breaks with at least BREAK_SPEED. After the
+  // break, pieces knocking together and on the floor clink.
   function onContact(entry, isGround) {
-    if (entry !== potEntry || !isGround || impact) return;
+    if (entry !== potEntry) {
+      if (phase === 'broken' && entry.speed > 0.6) audio.clink(Math.min(entry.speed / 3, 1));
+      return;
+    }
+    if (!isGround || impact) return;
     const velocity = new THREE.Vector3().copy(entry.velocity);
     if (entry.speed < BREAK_SPEED) velocity.set(0, -BREAK_SPEED, 0);
     impact = { velocity, speed: Math.max(entry.speed, BREAK_SPEED) };
@@ -169,6 +174,15 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
         .multiplyScalar(0.18)
         .addScaledVector(toPiece, impact.speed * rng.range(0.16, 0.34));
       const angvel = new THREE.Vector3(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1)).multiplyScalar(2 + 4 * strength);
+      if (data.lost) {
+        // The lost piece skitters away into the dark, past the bounds, and
+        // fades as it goes (its own materials, so only it fades).
+        mesh.material = mesh.material.map((m) => Object.assign(m.clone(), { transparent: true }));
+        linvel.set(rng.range(-0.6, 0.6), 0.6, -1).normalize().multiplyScalar(rng.range(3.4, 4.2));
+        const entry = world.addBody(mesh, data.hulls, { linvel, angvel, kind: 'lost', friction: 0.02, restitution: 0.25 });
+        shards.push({ mesh, entry, rest: data.rest, lost: true, geometry: data.geometry });
+        continue;
+      }
       const entry = world.addBody(mesh, data.hulls, { linvel, angvel, restitution: 0.1, density: 2 });
       shards.push({ mesh, entry, rest: data.rest });
     }
@@ -200,6 +214,17 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
 
     // While gathering, pieces that rested on a lifted one settle again.
     world.step(dt, phase === 'gather' ? null : onContact);
+    // The lost piece fades into the dark, then it is gone.
+    const lost = shards.find((s) => s.lost && s.entry);
+    if (lost) {
+      const fade = 1 - THREE.MathUtils.smoothstep(brokenTime, 1.4, 2.6);
+      for (const m of lost.mesh.material) m.opacity = fade;
+      if (fade <= 0) {
+        world.removeBody(lost.entry);
+        lost.entry = null;
+        lost.mesh.visible = false;
+      }
+    }
     if (phase === 'broken') {
       brokenTime += dt;
       if (brokenTime > 0.25 && !contactsOn) {
@@ -229,7 +254,7 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
 
   function shardBounds() {
     const box = new THREE.Box3();
-    for (const s of shards) box.expandByObject(s.mesh);
+    for (const s of shards) if (!s.lost) box.expandByObject(s.mesh);
     return box;
   }
 
@@ -237,6 +262,7 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
     for (const s of shards) {
       scene.remove(s.mesh);
       s.mesh.geometry.dispose();
+      if (s.lost) for (const m of s.mesh.material) m.dispose();
     }
     shards = [];
     // Once dropped, the pot lives in the scene rather than on its stand.

@@ -13,11 +13,13 @@ import { createFractureClient } from './fracture/client.js';
 import { loadPhysics } from './physics.js';
 import { createDrop } from './drop.js';
 import { createMend } from './mend.js';
-import { createGold } from './gold.js';
+import { createGold, createGoldPatch } from './gold.js';
 import { createTrace } from './trace.js';
 import { meiFor } from './mei.js';
 import { savePNG } from './save.js';
 import { createUI } from './ui.js';
+import { audio } from './audio.js';
+import { STRINGS, getLang, saveLang, meiLine } from './i18n.js';
 import { tween, updateTweens, ease, lerp } from './utils/tween.js';
 import { hashSeed } from './utils/random.js';
 
@@ -25,9 +27,15 @@ export const STATES = ['choose', 'lift', 'fall', 'shatter', 'still', 'gather', '
 
 const startedAt = performance.now();
 
+// English or 日本語: follows the browser until the visitor chooses.
+let lang = getLang();
+const words = () => STRINGS[lang];
+// Hints are worded for fingers or a mouse.
+const device = matchMedia('(pointer: coarse)').matches ? 'touch' : 'mouse';
+
 const view = createScene(document.getElementById('app'));
 const { renderer, scene, camera } = view;
-const ui = createUI(document.body);
+const ui = createUI(document.body, { label: (key) => words().labels[key] });
 const dust = createDust(view.key);
 scene.add(dust.points);
 
@@ -38,7 +46,7 @@ const drop = createDrop({
   onImpact: () => setState('shatter'),
   onSettled: still,
 });
-const mend = createMend({ camera, canvas: renderer.domElement, drop, onAllHome: whole });
+const mend = createMend({ camera, canvas: renderer.domElement, drop, onHome: () => audio.home(), onAllHome: whole });
 const trace = createTrace({ camera, canvas: renderer.domElement });
 
 // Moving the camera is allowed only in Gather, Trace and Keep (see enableOrbit).
@@ -69,25 +77,53 @@ const viewButtons = ui.viewControls({
   recentre,
 });
 
-// A small how-to under each step's line, worded for fingers or a mouse.
-const touch = matchMedia('(pointer: coarse)').matches;
-const HINTS = touch
-  ? {
-      choose: 'Tap a pot to choose it',
-      lift: 'Press on the pot, slide your finger up, then let go',
-      gather: 'Tap a piece to send it home · drag to look around · pinch to zoom',
-      trace: 'Draw along the dark lines · drag beside the pot to turn · ✦ gilds the rest · ✓ done',
-      keep: 'Drag to look around · ↓ saves a picture · ↺ begins again',
-    }
-  : {
-      choose: 'Click a pot to choose it',
-      lift: 'Press on the pot, drag upwards, then let go',
-      gather: 'Click a piece to send it home · drag to look around · scroll to zoom',
-      trace: 'Draw along the dark lines · right-drag to turn · scroll to zoom · ✦ gilds the rest · ✓ done',
-      keep: 'Drag to look around · scroll to zoom · ↓ saves a picture · ↺ begins again',
-    };
+// --- Words: each step's line and its how-to, in the chosen language --------------
+
+let step = null; // the step whose words are showing
+
+function lineFor(s) {
+  return s === 'keep' ? meiLine(lang, meiFor(chosen.seed)) : words().prompts[s];
+}
+
+function say(s, promptDelay = 0, hintDelay = promptDelay + 0.3) {
+  step = s;
+  ui.setPrompt(lineFor(s), promptDelay);
+  ui.setHint(words().hints[device][s], hintDelay);
+}
+
+function hush() {
+  step = null;
+  ui.setPrompt(null);
+  ui.setHint(null);
+}
+
+function applyLanguage() {
+  document.documentElement.lang = lang;
+  ui.setSubtitle(words().subtitle);
+  ui.relabel();
+  if (step) ui.swapText(lineFor(step), words().hints[device][step]);
+}
+
+// Top right: sound on/off and the language switch.
+ui.cornerControls({
+  muted: audio.muted,
+  onMute: () => audio.toggleMute(),
+  languageName: () => STRINGS[lang === 'en' ? 'ja' : 'en'].name,
+  onLanguage: () => {
+    lang = lang === 'en' ? 'ja' : 'en';
+    saveLang(lang);
+    applyLanguage();
+  },
+});
+applyLanguage();
+
+// Sound may only start from a gesture: the first touch, click or key.
+for (const type of ['pointerdown', 'keydown']) {
+  document.addEventListener(type, () => audio.unlock(), { capture: true });
+}
 
 let gold = null;
+let goldPatch = null;
 let finishTimer = 0;
 
 const raycaster = new THREE.Raycaster();
@@ -222,8 +258,7 @@ async function choose(station) {
   chosen = station;
   hovered = null;
   renderer.domElement.style.cursor = '';
-  ui.setPrompt(null);
-  ui.setHint(null);
+  hush();
 
   for (const other of stations) {
     if (other !== station) fadeAway(other, Math.sign(other.group.position.x - station.group.position.x));
@@ -239,8 +274,7 @@ async function choose(station) {
 
   setState('lift');
   drop.begin(station);
-  ui.setPrompt('Lift the pot', -0.6);
-  ui.setHint(HINTS.lift, -0.3);
+  say('lift', -0.6);
   againButton.show();
   busy = false;
 }
@@ -264,8 +298,7 @@ async function still() {
   mend.begin(chosen.seed);
   // Walk around the pieces to find them all; a tap still picks one.
   enableOrbit({ minPolar: 12 });
-  ui.setPrompt('Gather the pieces', -0.6);
-  ui.setHint(HINTS.gather, -0.3);
+  say('gather', -0.6);
   againButton.show();
 }
 
@@ -382,12 +415,13 @@ async function recentre() {
 // --- Gold, trace and keep -------------------------------------------------------
 
 // Every piece is home: swap them for the intact pot (no hairline gaps), let
-// it settle onto its stand, then the dark lacquer runs along every crack,
-// ready for the visitor to lay the gold.
+// it settle onto its stand, then the dark lacquer runs along every crack and
+// fills the lost piece's place, which turns to solid gold. Then the visitor
+// lays the gold on the seams.
 async function whole() {
   setState('gold');
   disableOrbit();
-  ui.setHint(null);
+  hush();
   againButton.hide();
   const pot = drop.pot;
   for (const s of drop.shards) s.mesh.visible = false;
@@ -398,6 +432,12 @@ async function whole() {
   gold.flow = 0;
   gold.gild = 0;
   pot.add(gold.mesh);
+  const lost = drop.shards.find((s) => s.lost);
+  if (lost) {
+    goldPatch = createGoldPatch(lost.geometry, { envMap: view.envMap });
+    goldPatch.mesh.position.copy(lost.rest);
+    pot.add(goldPatch.mesh);
+  }
 
   const fromY = pot.position.y;
   const restY = new THREE.Vector3().setFromMatrixPosition(drop.restMatrix).y;
@@ -406,14 +446,23 @@ async function whole() {
     moveCamera(heroFraming(chosen), 2.4),
   ]);
   if (state !== 'gold') return;
+  audio.settle();
 
-  await tween({ duration: 2.4, easing: ease.outCubic, onUpdate: (k) => (gold.flow = k) });
+  await tween({
+    duration: 2.4,
+    easing: ease.outCubic,
+    onUpdate: (k) => {
+      gold.flow = k;
+      if (goldPatch) goldPatch.show = k;
+    },
+  });
+  if (state !== 'gold') return;
+  if (goldPatch) await tween({ duration: 2, easing: ease.joHaKyu, onUpdate: (k) => (goldPatch.fill = k) });
   if (state !== 'gold') return;
 
   setState('trace');
   enableOrbit({ minPolar: 20 });
-  ui.setPrompt('Trace the gold', -0.6);
-  ui.setHint(HINTS.trace, -0.3);
+  say('trace', -0.6);
   gildButton.show();
   doneButton.show();
 }
@@ -443,8 +492,7 @@ async function gildRest() {
   if (state !== 'trace') return;
   setState('gold');
   hideTraceButtons();
-  ui.setPrompt(null);
-  ui.setHint(null);
+  hush();
   await tween({ duration: 2.8, easing: ease.inOutSine, onUpdate: (k) => (gold.gild = k) });
   if (state === 'gold') keep();
 }
@@ -467,8 +515,8 @@ function keep() {
   setState('keep');
   chosen.group.attach(drop.pot);
   enableOrbit();
-  ui.setPrompt(meiFor(chosen.seed).line, -0.4);
-  ui.setHint(HINTS.keep, -0.1);
+  say('keep', -0.4, -0.1);
+  audio.rin();
   saveButton.show();
   againButton.show();
 }
@@ -498,18 +546,17 @@ function fadeAway(station, dir) {
   });
 }
 
-const gildButton = ui.button('gild', 'Gild the rest', gildRest);
-const doneButton = ui.button('done', 'Done', finishTrace);
-const saveButton = ui.button('save', 'Save', save);
-const againButton = ui.button('again', 'Again', again);
+const gildButton = ui.button('gild', 'gild', gildRest);
+const doneButton = ui.button('done', 'done', finishTrace);
+const saveButton = ui.button('save', 'save', save);
+const againButton = ui.button('again', 'again', again);
 
 async function again() {
   if (busy) return;
   busy = true;
   againButton.hide();
   saveButton.hide();
-  ui.setPrompt(null);
-  ui.setHint(null);
+  hush();
   await ui.close();
   disableOrbit();
   trace.end();
@@ -517,6 +564,8 @@ async function again() {
   mend.reset();
   gold?.dispose();
   gold = null;
+  goldPatch?.dispose();
+  goldPatch = null;
   drop.reset();
   baseSeed = freshSeed();
   chosen = null;
@@ -524,8 +573,7 @@ async function again() {
   setCamera(chooseFraming());
   setState('choose');
   ui.open();
-  ui.setPrompt('Choose a pot', 0.4);
-  ui.setHint(HINTS.choose, 0.7);
+  say('choose', 0.4, 0.7);
   busy = false;
 }
 
@@ -569,8 +617,7 @@ function backgroundTap(e) {
 canvas.addEventListener('pointerdown', (e) => {
   down = { x: e.clientX, y: e.clientY, t: performance.now() };
   if (state === 'lift' && !busy && pick(e) === chosen && drop.grab(e, worldPerPixel())) {
-    ui.setPrompt(null);
-    ui.setHint(null);
+    hush();
     try {
       canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -585,8 +632,7 @@ function endDrag() {
     setState('fall');
     againButton.hide();
   } else if (result === 'settle-back') {
-    ui.setPrompt('Lift the pot', 0.6);
-    ui.setHint(HINTS.lift, 0.9);
+    say('lift', 0.6);
   }
 }
 
@@ -715,12 +761,11 @@ setCamera(chooseFraming());
 if (import.meta.env.DEV) console.debug(`[tsugu] scene built in ${Math.round(performance.now() - startedAt)} ms`);
 requestAnimationFrame(() => {
   ui.open();
-  ui.setPrompt('Choose a pot', 0.8);
-  ui.setHint(HINTS.choose, 1.1);
+  say('choose', 0.8);
   // Fetch the physics engine quietly while the visitor chooses.
   setTimeout(loadPhysics, 1200);
 });
 
 if (import.meta.env.DEV) {
-  window.__tsugu = { scene, camera, renderer, drop, mend, stations: () => stations, state: () => state, gold: () => gold };
+  window.__tsugu = { scene, camera, renderer, drop, mend, audio, stations: () => stations, state: () => state, gold: () => gold };
 }

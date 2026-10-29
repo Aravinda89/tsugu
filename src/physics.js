@@ -18,6 +18,7 @@ export function loadPhysics() {
 const GROUND = 0x0001;
 const SHARD = 0x0002;
 const POT = 0x0004;
+const WALL = 0x0008; // the invisible bounds; the lost piece passes through them
 const groups = (member, filter) => (member << 16) | filter;
 
 const STEP = 1 / 60;
@@ -30,20 +31,27 @@ export function createWorld(RAPIER, { gravity = 12, boxes = [] } = {}) {
   const ground = new Set();
   let accumulator = 0;
 
-  // Fixed boxes: floor, stand, and invisible walls. Each is {center, half}.
-  for (const { center, half } of boxes) {
+  // Fixed boxes: floor, stand, and invisible walls. Each is {center, half, wall?}.
+  for (const { center, half, wall } of boxes) {
     const collider = world.createCollider(
       RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z)
         .setTranslation(center.x, center.y, center.z)
         .setFriction(0.8)
         .setRestitution(0.1)
-        .setCollisionGroups(groups(GROUND, 0xffff)),
+        .setCollisionGroups(groups(wall ? WALL : GROUND, 0xffff)),
     );
     ground.add(collider.handle);
   }
 
+  const filterFor = (kind) => {
+    if (kind === 'pot') return groups(POT, GROUND | WALL);
+    if (kind === 'lost') return groups(SHARD, GROUND);
+    return groups(SHARD, GROUND | WALL);
+  };
+
   // `hulls` is one point cloud or several (a compound of convex parts).
-  function addBody(mesh, hulls, { linvel, angvel, kind = 'shard', density = 2, restitution = 0.15 } = {}) {
+  // kind: 'pot', 'shard', or 'lost' (the piece that slides away into the dark).
+  function addBody(mesh, hulls, { linvel, angvel, kind = 'shard', density = 2, restitution = 0.15, friction = 0.75 } = {}) {
     const desc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(mesh.position.x, mesh.position.y, mesh.position.z)
       .setRotation({ x: mesh.quaternion.x, y: mesh.quaternion.y, z: mesh.quaternion.z, w: mesh.quaternion.w })
@@ -61,10 +69,12 @@ export function createWorld(RAPIER, { gravity = 12, boxes = [] } = {}) {
       // at the moment of breaking, so shard–shard contact is enabled a moment later.
       colliderDesc
         .setDensity(density)
-        .setFriction(0.75)
+        .setFriction(friction)
         .setRestitution(restitution)
         .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-        .setCollisionGroups(kind === 'pot' ? groups(POT, GROUND) : groups(SHARD, GROUND));
+        .setCollisionGroups(filterFor(kind));
+      // The lost piece keeps its own (low) friction instead of averaging with the floor's.
+      if (kind === 'lost') colliderDesc.setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min);
       const collider = world.createCollider(colliderDesc, body);
       entry.colliders.push(collider);
       bodies.set(collider.handle, entry);
@@ -81,7 +91,7 @@ export function createWorld(RAPIER, { gravity = 12, boxes = [] } = {}) {
   function enableShardContacts() {
     for (const entry of new Set(bodies.values())) {
       if (entry.kind !== 'shard') continue;
-      for (const c of entry.colliders) c.setCollisionGroups(groups(SHARD, GROUND | SHARD));
+      for (const c of entry.colliders) c.setCollisionGroups(groups(SHARD, GROUND | WALL | SHARD));
     }
   }
 
@@ -126,8 +136,8 @@ export function createWorld(RAPIER, { gravity = 12, boxes = [] } = {}) {
   // True once every body has (nearly) stopped. `tolerance` loosens the test,
   // for pieces that keep nudging each other in a pile.
   function settled(tolerance = 1) {
-    for (const { body } of new Set(bodies.values())) {
-      if (body.isSleeping()) continue;
+    for (const { body, kind } of new Set(bodies.values())) {
+      if (kind === 'lost' || body.isSleeping()) continue;
       const v = body.linvel();
       const w = body.angvel();
       if (Math.hypot(v.x, v.y, v.z) > 0.03 * tolerance || Math.hypot(w.x, w.y, w.z) > 0.15 * tolerance) return false;

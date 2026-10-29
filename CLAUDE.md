@@ -118,6 +118,21 @@ Do **not** use CSG libraries or pre-fractured Blender models. The pot is a surfa
   - It depends on the environment map for reflections; without it the gold looks brown.
 - **Reveal.** Grow each line along its length (draw range or a shader clip by arc length), so the gold appears to flow into the cracks.
 
+**As built (Phase 5).**
+- **Lost piece:** `fracturePot` marks the smallest shard `lost`, which is never the base.
+  - **At the break:** it slides off into the dark on low friction, passing through the walls (their own `WALL` collision group), and is removed after about 2.5 s.
+  - **Gather:** it is left out, so the pot reassembles with a hole.
+  - **Gold patch:** `createGoldPatch` puts the shard's own geometry over the intact clay (`polygonOffset`). It shows as lacquer while the urushi runs, then fills to gold (`uFill`) before tracing starts.
+- **Sound:** all synthesized in `audio.js` with Web Audio, no files.
+  - impact crack, ceramic clinks on contacts (rate-limited), a click when a piece comes home, a knock when the pot settles, soft rain plus a suikinkutsu drip, and a rin bell on entering Keep
+  - It starts on the first gesture and suspends while the tab is hidden.
+  - Mute ramps the master gain and is remembered (`tsugu.muted`).
+- **Language:** English and 日本語, from `i18n.js`. It follows the browser (`ja` gives Japanese) and the choice is remembered (`tsugu.lang`).
+  - Prompts, hints, button labels, the subtitle and the mei line all switch live.
+  - The mei shows its English, or its hiragana reading in Japanese.
+  - Shippori Mincho 600 loads without a `text=` subset, as unicode-range slices.
+- **Corner buttons:** mute and language sit at the top right in every step.
+
 **As built (Phase 4).**
 - **Coverage:** each gold ribbon vertex carries `aGold` (0..1), the gold laid by tracing.
 - **Shader:** `g = max(reveal, traced)`, so traced gold also lands grain by grain and glints as it catches.
@@ -218,6 +233,7 @@ Do one phase at a time, and stop after each one so I can test it in the browser 
   - irregular gold width
   - pieces may return with a tiny misalignment
 - Little text: one line and one how-to hint per step. Don't explain kintsugi inside the experience, except for one optional line at the very end.
+- Every visible word exists in English and Japanese (`src/i18n.js`, with the same keys in both; a test checks this).
 
 ## Art direction (from the user's mockup)
 - **Mood:** a low-key studio still life.

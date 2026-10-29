@@ -150,6 +150,16 @@ for (const type of PROFILE_ORDER) {
       }
     });
 
+    it('loses exactly one piece: the smallest, never the base', () => {
+      const lost = shards.filter((s) => s.lost);
+      expect(lost.length).toBe(1);
+      const areas = shards.map((s) => s.outerArea);
+      expect(lost[0].outerArea).toBe(Math.min(...areas));
+      expect(lost[0].outerArea).toBeLessThan(Math.max(...areas));
+      const again = fracturePot(geometry, { count: 16, impact, seed: 5 });
+      expect(again.shards.findIndex((s) => s.lost)).toBe(shards.findIndex((s) => s.lost));
+    });
+
     it('keeps crack lines for the gold', () => {
       expect(cracks.outer.length).toBeGreaterThan(0);
       expect(cracks.inner.length).toBe(cracks.outer.length);

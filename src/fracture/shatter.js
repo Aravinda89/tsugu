@@ -335,6 +335,13 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
     });
   }
 
+  // One small piece is lost in the fall; its place will be filled with gold.
+  // The smallest one, so never the base.
+  if (shards.length > 2) {
+    const smallest = shards.reduce((a, b) => (b.outerArea < a.outerArea ? b : a));
+    smallest.lost = true;
+  }
+
   return { shards, cracks: buildCracks(crackEdges, rimCracks, sampleAt, segT), seeds };
 }
 

@@ -218,6 +218,50 @@ canvas {
   }
 }
 
+/* Top right: sound on/off and the language switch. */
+.corner {
+  position: fixed;
+  top: max(24px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.corner button {
+  height: 38px;
+  min-width: 38px;
+  border-radius: 19px;
+  border: 1.5px solid var(--gold-dim);
+  background: rgba(18, 12, 8, 0.45);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--serif);
+  transition: border-color 0.4s ease, background 0.4s ease;
+}
+.corner button:hover,
+.corner button:focus-visible {
+  border-color: var(--gold);
+  background: rgba(201, 163, 92, 0.08);
+  outline: none;
+}
+.corner svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.corner .lang {
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
 /* View controls: zoom in, zoom out, recentre. For anyone who doesn't know
    the gestures; shown only while the camera may move. */
 .view {

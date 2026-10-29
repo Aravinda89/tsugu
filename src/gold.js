@@ -176,6 +176,57 @@ void main() {
   return material;
 }
 
+// The lost piece's place, filled with solid gold: the piece's own shape,
+// laid over the intact clay. uShow brings in the lacquer; uFill turns it to
+// gold, grain by grain, like the seams.
+export function createGoldPatch(geometry, { envMap }) {
+  const uniforms = { uShow: { value: 0 }, uFill: { value: 0 } };
+  const material = new THREE.MeshPhysicalMaterial({
+    color: GOLD,
+    metalness: 1,
+    roughness: 0.34,
+    envMap,
+    envMapIntensity: 0.6,
+    transparent: true,
+    polygonOffset: true, // wins over the clay surface it lies on
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader.replace(
+      'void main() {',
+      'varying float vGrain;\nvoid main() {\n  vGrain = fract(sin(dot(position, vec3(127.1, 311.7, 74.7)) * 97.0) * 43758.5453);',
+    );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        'void main() {',
+        'uniform float uShow;\nuniform float uFill;\nvarying float vGrain;\nconst vec3 URUSHI = vec3(0.07, 0.02, 0.014);\nvoid main() {',
+      )
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\n  float g = smoothstep(vGrain * 0.5, vGrain * 0.5 + 0.4, uFill * 1.4);\n  vec3 gold = diffuseColor.rgb;\n  diffuseColor.rgb = mix(URUSHI, gold, g);\n  diffuseColor.a *= uShow;',
+      )
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix(0.42, roughnessFactor, g);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = g;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += gold * g * (1.0 - g) * 0.9;')
+      .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n  radiance *= mix(0.08, 1.0, g);');
+  };
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'gold-patch';
+  mesh.receiveShadow = true;
+  return {
+    mesh,
+    set show(v) {
+      uniforms.uShow.value = v;
+    },
+    set fill(v) {
+      uniforms.uFill.value = v;
+    },
+    dispose: () => material.dispose(),
+  };
+}
+
 export function createGold(cracks, { envMap, seed }) {
   const geometry = buildGoldGeometry(cracks, seed);
   const material = createGoldMaterial(envMap);

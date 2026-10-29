@@ -20,7 +20,7 @@ export function createFractureClient() {
         g.setIndex(new THREE.BufferAttribute(s.index, 1));
         for (const { start, count, materialIndex } of s.groups) g.addGroup(start, count, materialIndex);
         g.computeBoundingSphere();
-        return { geometry: g, rest: new THREE.Vector3().fromArray(s.rest), hulls: s.hulls };
+        return { geometry: g, rest: new THREE.Vector3().fromArray(s.rest), hulls: s.hulls, lost: s.lost };
       }),
       cracks: data.cracks,
     });

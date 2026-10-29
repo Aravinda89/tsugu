@@ -40,6 +40,7 @@ self.onmessage = ({ data }) => {
         groups: g.groups,
         rest: s.rest.toArray(),
         hulls: s.hulls,
+        lost: !!s.lost,
       };
     });
     for (const line of [...cracks.outer, ...cracks.inner, ...cracks.rim]) {
