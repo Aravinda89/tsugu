@@ -1,5 +1,5 @@
 // 継ぐ Tsugu: app start and state machine.
-// choose → lift → fall → shatter → still → gather → gold → keep
+// choose → lift → fall → shatter → still → gather → gold → trace → keep
 
 import './style.css';
 import * as THREE from 'three';
@@ -14,13 +14,14 @@ import { loadPhysics } from './physics.js';
 import { createDrop } from './drop.js';
 import { createMend } from './mend.js';
 import { createGold } from './gold.js';
+import { createTrace } from './trace.js';
 import { meiFor } from './mei.js';
 import { savePNG } from './save.js';
 import { createUI } from './ui.js';
 import { tween, updateTweens, ease, lerp } from './utils/tween.js';
 import { hashSeed } from './utils/random.js';
 
-export const STATES = ['choose', 'lift', 'fall', 'shatter', 'still', 'gather', 'gold', 'keep'];
+export const STATES = ['choose', 'lift', 'fall', 'shatter', 'still', 'gather', 'gold', 'trace', 'keep'];
 
 const startedAt = performance.now();
 
@@ -38,19 +39,33 @@ const drop = createDrop({
   onSettled: still,
 });
 const mend = createMend({ camera, canvas: renderer.domElement, drop, onAllHome: whole });
+const trace = createTrace({ camera, canvas: renderer.domElement });
 
-// Orbiting is allowed only while gathering and in Keep (see enableOrbit).
+// Moving the camera is allowed only in Gather, Trace and Keep (see enableOrbit).
+// One finger (left mouse) turns around the pot, two fingers (right mouse)
+// slide, pinch or wheel zooms toward the pointer.
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enabled = false;
-controls.enablePan = false;
 controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.rotateSpeed = 0.5;
-controls.zoomSpeed = 0.6;
+controls.dampingFactor = 0.09;
+controls.rotateSpeed = 0.75;
+controls.zoomSpeed = 1;
+controls.zoomToCursor = true;
+controls.enablePan = true;
+controls.screenSpacePanning = true;
+controls.panSpeed = 0.7;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.minPolarAngle = THREE.MathUtils.degToRad(35);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(86);
+const orbitHome = { position: new THREE.Vector3(), target: new THREE.Vector3() };
+const viewButtons = ui.viewControls({
+  zoomIn: () => zoomBy(0.72),
+  zoomOut: () => zoomBy(1.38),
+  recentre,
+});
 
 let gold = null;
+let finishTimer = 0;
 
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -223,29 +238,77 @@ async function still() {
   setState('gather');
   mend.begin(chosen.seed);
   // Walk around the pieces to find them all; a tap still picks one.
-  enableOrbit({ minPolar: 12, zoomIn: 0.45 });
+  enableOrbit({ minPolar: 12 });
   ui.setPrompt('Gather the pieces', -0.6);
   againButton.show();
 }
 
-// Orbit around the current look target. Allowed only in Gather and Keep.
-function enableOrbit({ minPolar = 35, zoomIn = 0.6, zoomOut = 1.5 } = {}) {
+// --- Moving the camera (Gather, Trace and Keep) ---------------------------------
+
+// Orbit around the current look target; the current view becomes "home".
+function enableOrbit({ minPolar = 30, zoomIn = 0.3, zoomOut = 2.2 } = {}) {
   controls.target.copy(look);
   const d = camera.position.distanceTo(look);
   controls.minDistance = d * zoomIn;
   controls.maxDistance = d * zoomOut;
   controls.minPolarAngle = THREE.MathUtils.degToRad(minPolar);
+  orbitHome.position.copy(camera.position);
+  orbitHome.target.copy(look);
+  controls.enabled = true;
+  controls.update();
+  viewButtons.show();
+}
+
+function disableOrbit() {
+  controls.enabled = false;
+  viewButtons.hide();
+}
+
+// Sliding the view is held near the pot, so it can never be lost.
+function clampTarget() {
+  const t = controls.target, h = orbitHome.target;
+  const before = t.clone();
+  t.x = THREE.MathUtils.clamp(t.x, h.x - 1.1, h.x + 1.1);
+  t.y = THREE.MathUtils.clamp(t.y, 0.05, h.y + 0.9);
+  t.z = THREE.MathUtils.clamp(t.z, h.z - 1.1, h.z + 1.1);
+  camera.position.add(before.sub(t).negate());
+}
+
+// The zoom buttons: ease closer or further along the line of sight.
+function zoomBy(factor) {
+  if (!controls.enabled) return;
+  const dir = camera.position.clone().sub(controls.target);
+  const from = dir.length();
+  const to = THREE.MathUtils.clamp(from * factor, controls.minDistance, controls.maxDistance);
+  dir.normalize();
+  tween({
+    duration: 0.45,
+    easing: ease.inOutSine,
+    onUpdate: (k) => camera.position.copy(controls.target).addScaledVector(dir, lerp(from, to, k)),
+  });
+}
+
+// Back to the view this step began with.
+async function recentre() {
+  if (!controls.enabled || cameraMoving) return;
+  const enabledStates = state;
+  controls.enabled = false;
+  look.copy(controls.target);
+  await moveCamera({ position: orbitHome.position.clone(), target: orbitHome.target.clone() }, 1.1);
+  if (state !== enabledStates) return;
+  controls.target.copy(look);
   controls.enabled = true;
   controls.update();
 }
 
-// --- Gold and keep -------------------------------------------------------------
+// --- Gold, trace and keep -------------------------------------------------------
 
 // Every piece is home: swap them for the intact pot (no hairline gaps), let
-// it settle onto its stand, then the lacquer runs and the gold takes.
+// it settle onto its stand, then the dark lacquer runs along every crack,
+// ready for the visitor to lay the gold.
 async function whole() {
   setState('gold');
-  controls.enabled = false;
+  disableOrbit();
   againButton.hide();
   const pot = drop.pot;
   for (const s of drop.shards) s.mesh.visible = false;
@@ -265,12 +328,55 @@ async function whole() {
   ]);
   if (state !== 'gold') return;
 
-  await Promise.all([
-    tween({ duration: 2.4, easing: ease.outCubic, onUpdate: (k) => (gold.flow = k) }),
-    tween({ duration: 2.8, delay: 1.2, easing: ease.inOutSine, onUpdate: (k) => (gold.gild = k) }),
-  ]);
+  await tween({ duration: 2.4, easing: ease.outCubic, onUpdate: (k) => (gold.flow = k) });
   if (state !== 'gold') return;
+
+  setState('trace');
+  enableOrbit({ minPolar: 20 });
+  ui.setPrompt('Trace the gold', -0.6);
+  gildButton.show();
+  doneButton.show();
+}
+
+// A stroke on the pot lays gold; anywhere else turns the view.
+function startTrace(e) {
+  if (state !== 'trace' || e.target !== renderer.domElement || !e.isPrimary) return;
+  if (!trace.start(e, drop.pot, gold)) return;
+  clearTimeout(finishTimer);
+  controls.enabled = false; // this press paints; OrbitControls must not see it
+  ui.setPrompt(null);
+}
+
+function endTrace() {
+  if (!trace.active) return;
+  trace.end();
+  controls.enabled = true;
+  // Nearly all of it gilded by hand: let it rest, then move on.
+  if (gold.coverage() > 0.9) {
+    finishTimer = setTimeout(() => state === 'trace' && !trace.active && finishTrace(), 1400);
+  }
+}
+
+// ✦ The rest takes the gold by itself, grain by grain.
+async function gildRest() {
+  if (state !== 'trace') return;
+  setState('gold');
+  hideTraceButtons();
+  await tween({ duration: 2.8, easing: ease.inOutSine, onUpdate: (k) => (gold.gild = k) });
+  if (state === 'gold') keep();
+}
+
+// ✓ Whatever is gilded now stays as it is; the rest remains lacquer.
+function finishTrace() {
+  if (state !== 'trace') return;
+  hideTraceButtons();
   keep();
+}
+
+function hideTraceButtons() {
+  clearTimeout(finishTimer);
+  gildButton.hide();
+  doneButton.hide();
 }
 
 // The pot turns slowly on its stand; the visitor may walk around it.
@@ -308,6 +414,8 @@ function fadeAway(station, dir) {
   });
 }
 
+const gildButton = ui.button('gild', 'Gild the rest', gildRest);
+const doneButton = ui.button('done', 'Done', finishTrace);
 const saveButton = ui.button('save', 'Save', save);
 const againButton = ui.button('again', 'Again', again);
 
@@ -318,7 +426,9 @@ async function again() {
   saveButton.hide();
   ui.setPrompt(null);
   await ui.close();
-  controls.enabled = false;
+  disableOrbit();
+  trace.end();
+  hideTraceButtons();
   mend.reset();
   gold?.dispose();
   gold = null;
@@ -353,6 +463,22 @@ function pick(e) {
 
 const canvas = renderer.domElement;
 let down = null;
+let lastBackgroundTap = null;
+
+// Capture phase on the document: decides whether a press paints before
+// OrbitControls (listening on the canvas) can treat it as an orbit.
+document.addEventListener('pointerdown', startTrace, { capture: true });
+
+// Double-tap (or double-click) the background to recentre the view.
+function backgroundTap(e) {
+  const now = performance.now();
+  const prev = lastBackgroundTap;
+  lastBackgroundTap = { x: e.clientX, y: e.clientY, t: now };
+  if (prev && now - prev.t < 380 && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) < 40) {
+    lastBackgroundTap = null;
+    recentre();
+  }
+}
 
 canvas.addEventListener('pointerdown', (e) => {
   down = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -379,12 +505,18 @@ function endDrag() {
 canvas.addEventListener('pointercancel', () => {
   down = null;
   if (drop.dragging) endDrag();
+  endTrace();
 });
 
 canvas.addEventListener('pointerup', (e) => {
   if (drop.dragging) {
     down = null;
     endDrag();
+    return;
+  }
+  if (trace.active) {
+    down = null;
+    endTrace();
     return;
   }
   if (!down) return;
@@ -397,6 +529,8 @@ canvas.addEventListener('pointerup', (e) => {
     if (station) choose(station);
   } else if (state === 'gather' && !busy && mend.tap(e)) {
     ui.setPrompt(null);
+  } else if (controls.enabled) {
+    backgroundTap(e);
   }
 });
 
@@ -405,13 +539,21 @@ canvas.addEventListener('pointermove', (e) => {
     drop.move(e);
     return;
   }
+  if (trace.active) {
+    trace.move(e);
+    return;
+  }
   if (e.pointerType !== 'mouse' || busy) return;
   if (state === 'choose') {
     hovered = pick(e);
     canvas.style.cursor = hovered ? 'pointer' : '';
   } else if (state === 'gather') {
     canvas.style.cursor = mend.hovering(e) ? 'pointer' : 'grab';
-  } else if (state !== 'keep') {
+  } else if (state === 'trace') {
+    canvas.style.cursor = trace.hovering(e, drop.pot) ? 'crosshair' : 'grab';
+  } else if (state === 'keep') {
+    canvas.style.cursor = 'grab';
+  } else {
     canvas.style.cursor = state === 'lift' && pick(e) === chosen ? 'grab' : '';
   }
 });
@@ -429,7 +571,7 @@ window.addEventListener('resize', () => {
   if (state === 'choose') {
     layoutStations();
     setCamera(chooseFraming());
-  } else if (chosen && state !== 'keep' && state !== 'gather') {
+  } else if (chosen && !controls.enabled && state !== 'gold') {
     setCamera(heroFraming(chosen, drop.lift));
   }
 });
@@ -456,10 +598,11 @@ renderer.setAnimationLoop((now) => {
     camera.lookAt(look);
     fitFog();
   }
-  // Gather and Keep: the visitor's own orbit; in Keep, a slow turntable too.
-  if (state === 'gather' || state === 'keep') {
-    if (state === 'keep') chosen.group.rotation.y += dt * 0.14;
+  // Gather, Trace and Keep: the visitor's own view; in Keep, a slow turntable too.
+  if (state === 'keep') chosen.group.rotation.y += dt * 0.14;
+  if (controls.enabled) {
     controls.update();
+    clampTarget();
     look.copy(controls.target);
     fitFog();
   }

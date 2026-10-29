@@ -80,6 +80,10 @@ export function buildGoldGeometry(cracks, seed = 1) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
   g.setAttribute('aArc', new THREE.Float32BufferAttribute(ARC, 1));
   g.setAttribute('aGrain', new THREE.Float32BufferAttribute(GRAIN, 1));
+  // How much gold the visitor has laid here (0..1), painted while tracing.
+  const traced = new THREE.Float32BufferAttribute(new Float32Array(ARC.length), 1);
+  traced.setUsage(THREE.DynamicDrawUsage);
+  g.setAttribute('aGold', traced);
   g.setIndex(I);
   g.computeBoundingSphere();
   return g;
@@ -99,8 +103,32 @@ function smooth(arr, normalise = false) {
   return out;
 }
 
+// Closest point on any crack line to `p` (pot-local), and how far away it is.
+export function nearestOnCracks(cracks, p, out = new THREE.Vector3()) {
+  let best = Infinity;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), q = new THREE.Vector3(), ab = new THREE.Vector3();
+  for (const line of [...cracks.outer, ...cracks.inner, ...cracks.rim]) {
+    const pts = line.points;
+    for (let k = 0; k + 5 < pts.length; k += 3) {
+      a.fromArray(pts, k);
+      b.fromArray(pts, k + 3);
+      ab.subVectors(b, a);
+      const len2 = ab.lengthSq() || 1e-12;
+      const t = Math.min(Math.max(q.subVectors(p, a).dot(ab) / len2, 0), 1);
+      q.copy(a).addScaledVector(ab, t);
+      const d = q.distanceTo(p);
+      if (d < best) {
+        best = d;
+        out.copy(q);
+      }
+    }
+  }
+  return { point: out, distance: best };
+}
+
 // Lacquer-to-gold material. uFlow (0..1) is how far the lacquer has run
-// along each crack; uGild (0..1) is how much of it has taken the gold.
+// along each crack; uGild (0..1) is the automatic reveal; the aGold
+// attribute is gold the visitor has traced. Either one gilds.
 export function createGoldMaterial(envMap) {
   const uniforms = { uFlow: { value: 0 }, uGild: { value: 0 } };
   const material = new THREE.MeshPhysicalMaterial({
@@ -113,7 +141,10 @@ export function createGoldMaterial(envMap) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('void main() {', 'attribute float aArc;\nattribute float aGrain;\nvarying float vArc;\nvarying float vGrain;\nvoid main() {\n  vArc = aArc;\n  vGrain = aGrain;');
+      .replace(
+        'void main() {',
+        'attribute float aArc;\nattribute float aGrain;\nattribute float aGold;\nvarying float vArc;\nvarying float vGrain;\nvarying float vGold;\nvoid main() {\n  vArc = aArc;\n  vGrain = aGrain;\n  vGold = aGold;',
+      );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         'void main() {',
@@ -121,10 +152,14 @@ export function createGoldMaterial(envMap) {
 uniform float uGild;
 varying float vArc;
 varying float vGrain;
+varying float vGold;
 const vec3 URUSHI = vec3(0.07, 0.02, 0.014);
 float gilded() {
-  // Gold dust lands unevenly: each grain catches at its own moment.
-  return smoothstep(0.0, 0.1, uGild * 1.3 - (vArc * 0.5 + vGrain * 0.5));
+  // Gold dust lands unevenly: each grain catches at its own moment,
+  // whether it is laid by the visitor's stroke or by the reveal.
+  float reveal = smoothstep(0.0, 0.1, uGild * 1.3 - (vArc * 0.5 + vGrain * 0.5));
+  float traced = smoothstep(vGrain * 0.45, vGrain * 0.45 + 0.3, vGold);
+  return max(reveal, traced);
 }
 void main() {
   if (vArc > uFlow) discard;`,
@@ -149,6 +184,9 @@ export function createGold(cracks, { envMap, seed }) {
   mesh.castShadow = false;
   mesh.receiveShadow = true;
   const { uFlow, uGild } = material.userData.uniforms;
+  const pos = geometry.attributes.position.array;
+  const traced = geometry.attributes.aGold;
+  const strokes = [];
   return {
     mesh,
     // 0..1 each; set from the reveal tween.
@@ -158,6 +196,34 @@ export function createGold(cracks, { envMap, seed }) {
     set gild(v) {
       uGild.value = v;
     },
+    nearest: (p, out) => nearestOnCracks(cracks, p, out),
+
+    // Lays gold around a point on a crack (pot-local), softer at the edge.
+    paint(p, radius, strength) {
+      const r2 = radius * radius;
+      let changed = false;
+      for (let v = 0; v < traced.count; v++) {
+        const dx = pos[v * 3] - p.x, dy = pos[v * 3 + 1] - p.y, dz = pos[v * 3 + 2] - p.z;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= r2) continue;
+        const f = 1 - Math.sqrt(d2) / radius;
+        traced.array[v] = Math.min(1, traced.array[v] + strength * f * f);
+        changed = true;
+      }
+      if (changed) traced.needsUpdate = true;
+      return changed;
+    },
+
+    // Share of the seams that has taken gold from tracing.
+    coverage() {
+      let done = 0;
+      for (let v = 0; v < traced.count; v++) if (traced.array[v] > 0.55) done++;
+      return done / (traced.count || 1);
+    },
+
+    // The visitor's strokes (snapped, pot-local), kept for the shared shelf.
+    strokes,
+
     dispose() {
       geometry.dispose();
       material.dispose();

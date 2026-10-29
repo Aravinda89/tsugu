@@ -27,7 +27,8 @@ This is a portfolio pet project and must deploy for free (GitHub Pages).
 4. **Gather.** The user taps a shard, and it lifts and floats back to its place on the pot with a smooth ease.
    - There is no dragging and no rotating of pieces; this is not a jigsaw puzzle.
    - The user chooses the order.
-5. **Gold.** Once every shard is back, gold flows along each crack, revealed over about 3–4 seconds.
+5. **Gold.** Once every shard is back, dark urushi lacquer flows along each crack over a few seconds.
+   - **Trace (Phase 4):** the user lays the gold by drawing along the cracks. ✦ gilds the rest automatically, and ✓ finishes. Untraced cracks stay lacquer.
 6. **Keep.** The pot turns slowly on a turntable, and the user can orbit around it.
    - "Save" downloads a PNG.
    - "Again" returns to step 1.
@@ -115,6 +116,15 @@ Do **not** use CSG libraries or pre-fractured Blender models. The pot is a surfa
   - It depends on the environment map for reflections; without it the gold looks brown.
 - **Reveal.** Grow each line along its length (draw range or a shader clip by arc length), so the gold appears to flow into the cracks.
 
+**As built (Phase 4).**
+- **Coverage:** each gold ribbon vertex carries `aGold` (0..1), the gold laid by tracing.
+- **Shader:** `g = max(reveal, traced)`, so traced gold also lands grain by grain and glints as it catches.
+- **`trace.js` stroke:** raycasts the pot, snaps to the nearest crack segment within 0.05 (`nearestOnCracks`), and paints with a falloff. Slow strokes are wide and full; fast ones are thin and light.
+- **Gaps:** samples are interpolated, so quick strokes stay continuous.
+- **Gesture split:** a capture-phase `pointerdown` on `document` disables OrbitControls for presses that land on the pot.
+- **Finishing:** Keep follows ✓, ✦ (the `uGild` reveal), or about 1.4 s after a stroke that leaves more than 90% covered.
+- **Strokes:** stored on `gold.strokes` (pot-local points) for the Phase 6 shelf.
+
 **As built (Phase 3).**
 - **Reassembly:** the pot is put back together at `HOVER` above its stand, so pieces still on the stand are never in the way. When whole, it swaps for the intact mesh and settles onto the stand.
 - **Gather physics:** keeps stepping, so pieces resting on a lifted one fall.
@@ -143,7 +153,13 @@ It must run smoothly on mid-range phones.
 - Only one shadow-casting light.
 - Keep gestures separate:
   - A single finger lifts, taps and (later) traces.
-  - Orbiting the camera is allowed only in the Gather and Keep steps. In Gather, a drag orbits and a short tap picks a piece.
+  - Moving the camera is allowed only in the Gather, Trace and Keep steps.
+    - In Gather, a drag orbits and a short tap picks a piece.
+    - In Trace, a press on the pot paints, and a press on the background orbits.
+  - **Camera controls:**
+    - One finger or left mouse orbits; two fingers or right mouse pans (held near the pot); pinch or wheel zooms toward the pointer.
+    - A double-tap on the background recentres.
+    - ＋ / − / ◎ buttons at the right edge do the same.
 
 ---
 

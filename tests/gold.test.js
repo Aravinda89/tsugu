@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { createPotShape, buildPotGeometry } from '../src/pot/buildPot.js';
 import { fracturePot } from '../src/fracture/shatter.js';
-import { buildGoldGeometry } from '../src/gold.js';
+import { buildGoldGeometry, createGold, nearestOnCracks } from '../src/gold.js';
 import { meiFor, MEI } from '../src/mei.js';
 
 describe('gold seams', () => {
@@ -50,6 +50,39 @@ describe('gold seams', () => {
       }
       expect(best).toBeLessThan(0.03);
     }
+  });
+});
+
+describe('tracing the gold', () => {
+  const geometry = buildPotGeometry(createPotShape('chawan', 8));
+  const { cracks } = fracturePot(geometry, { count: 14, impact: new THREE.Vector3(0, 0, 0.2), seed: 9 });
+  const first = cracks.outer[0].points;
+  const onCrack = new THREE.Vector3().fromArray(first, Math.floor(first.length / 6) * 3);
+
+  it('snaps to the nearest crack', () => {
+    expect(nearestOnCracks(cracks, onCrack).distance).toBeLessThan(1e-6);
+    const off = onCrack.clone().add(new THREE.Vector3(0, 0.03, 0));
+    const near = nearestOnCracks(cracks, off);
+    expect(near.distance).toBeGreaterThan(0);
+    expect(near.distance).toBeLessThanOrEqual(0.03 + 1e-6);
+  });
+
+  it('lays gold only around the stroke, and coverage grows', () => {
+    const gold = createGold(cracks, { envMap: null, seed: 9 });
+    const traced = gold.mesh.geometry.attributes.aGold.array;
+    const pos = gold.mesh.geometry.attributes.position.array;
+    expect(gold.coverage()).toBe(0);
+    for (let i = 0; i < 4; i++) gold.paint(onCrack, 0.022, 0.55);
+    let near = 0, far = 0;
+    for (let v = 0; v < traced.length; v++) {
+      const d = Math.hypot(pos[v * 3] - onCrack.x, pos[v * 3 + 1] - onCrack.y, pos[v * 3 + 2] - onCrack.z);
+      if (d < 0.01) near = Math.max(near, traced[v]);
+      if (d > 0.03) far = Math.max(far, traced[v]);
+    }
+    expect(near).toBeGreaterThan(0.55);
+    expect(far).toBe(0);
+    expect(gold.coverage()).toBeGreaterThan(0);
+    gold.dispose();
   });
 });
 
