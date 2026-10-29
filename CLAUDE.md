@@ -125,7 +125,13 @@ Do **not** use CSG libraries or pre-fractured Blender models. The pot is a surfa
   - **Gather:** it is left out, so the pot reassembles with a hole.
   - **Gold patch:** `createGoldPatch` puts the shard's own geometry over the intact clay (`polygonOffset`). It shows as lacquer while the urushi runs, then fills to gold (`uFill`) before tracing starts.
 - **Sound:** all synthesized in `audio.js` with Web Audio, no files.
-  - impact crack, ceramic clinks on contacts (rate-limited), a click when a piece comes home, a knock when the pot settles, soft rain plus a suikinkutsu drip, and a rin bell on entering Keep
+  - impact crack, ceramic clinks on contacts (rate-limited), a click when a piece comes home, a knock when the pot settles, soft rain, and a rin bell on entering Keep
+  - **Music (`music.js`):** a koto plays generative phrases in the *in* scale on E (E F A B C), each ending on E or B, with a breath of *ma* after it.
+    - **Strings:** Karplus–Strong plucks precomputed into buffers, with exact pitch set by `playbackRate`.
+    - **Ornaments:** *oshide* bends, low open strings, and a *sararin* sweep after the rin bell.
+    - **Fūrin:** a glass wind-bell tinkles every 10–25 s.
+    - **Moods:** the music follows the steps through `audio.mood(state)`, called in `setState`. It plays in Choose, Lift, Gold, Trace and Keep, rests from the fall through the stillness, and thins out in Gather.
+    - **Preview:** a WAV can be rendered offline from `composePhrase` and `pluckSamples`.
   - It starts on the first gesture and suspends while the tab is hidden.
   - Mute ramps the master gain and is remembered (`tsugu.muted`).
 - **Language:** English and 日本語, from `i18n.js`. It follows the browser (`ja` gives Japanese) and the choice is remembered (`tsugu.lang`).
@@ -262,7 +268,7 @@ Draw from craft and tea-room tradition, never decoration: no sakura, torii or "o
   - **Gold reveal in two stages:** a dark urushi lacquer line flows along the crack first, then gold dust settles onto it and it turns gold.
   - **Keep:** the single end line is the pot's seeded **mei (銘)**, a two-kanji poetic name with its English, e.g. 夕霧 · evening mist. Add its kanji to the Shippori Mincho `text=` font subset.
   - **Save:** the PNG gets the vignette and a small vermilion 継 **hanko** seal.
-- **Phase 5 sound:** soft rain, water-drip chimes (*suikinkutsu*), and one *rin* bell when the gold completes.
+- **Phase 5 sound:** soft rain, a koto in the *in* scale with *ma* between its phrases, a *fūrin* wind-bell (this replaced the earlier *suikinkutsu* drip), and one *rin* bell when the gold completes, answered by a *sararin* sweep on the koto.
 - **Japanese pots (decided):** the three forms are tokkuri, tsubo and chawan, each fired at one of the old wood-fired kilns (`KILNS` in `buildPot.js`). All stay unglazed except for natural wood ash.
   - **Shigaraki (tsubo):** coarse orange clay, white feldspar stones, green glassy ash on the shoulder.
   - **Bizen (tokkuri):** dense red-brown clay, golden goma (sesame) ash specks, a faint satin sheen.

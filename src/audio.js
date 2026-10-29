@@ -1,7 +1,9 @@
-// Sound, made live with Web Audio: no files. A quiet room (soft rain, a
-// water-drip chime now and then), the clay's crack, ceramic clinks, a
-// knock as the pot is set down, and one rin bell when the gold is done.
+// Sound, made live with Web Audio: no files. A quiet room (soft rain), a koto
+// and a wind-bell (music.js), the clay's crack, ceramic clinks, a knock as the
+// pot is set down, and one rin bell when the gold is done.
 // Browsers only allow sound after a gesture, so it starts on the first touch.
+
+import { createMusic } from './music.js';
 
 const MUTE_KEY = 'tsugu.muted';
 const LEVEL = 0.9;
@@ -10,6 +12,8 @@ let ctx = null;
 let master = null;
 let reverb = null;
 let noise = null;
+let music = null;
+let step = 'choose'; // the visitor's step, for the music
 let lastClink = 0;
 let muted = readMuted();
 
@@ -50,6 +54,8 @@ function start() {
     else ctx.resume();
   });
   ambience();
+  music = createMusic(ctx, bus(1, 0.55));
+  music.mood(step);
 }
 
 function impulse(seconds, decay) {
@@ -101,7 +107,7 @@ function hiss(t, duration, type, freq, q, gain, dest) {
   src.stop(t + duration + 0.05);
 }
 
-// Soft rain, and a water-drip chime (suikinkutsu) every so often.
+// Soft rain outside, kept low under the music.
 function ambience() {
   const rain = ctx.createBufferSource();
   rain.buffer = noise;
@@ -114,19 +120,9 @@ function ambience() {
   lp.frequency.value = 2400;
   const level = ctx.createGain();
   level.gain.setValueAtTime(0, ctx.currentTime);
-  level.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 4);
+  level.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 4);
   rain.connect(hp).connect(lp).connect(level).connect(bus(1, 0.25));
   rain.start();
-
-  const notes = [523, 587, 659, 784, 880, 1047];
-  const drip = () => {
-    if (ctx.state === 'running') {
-      const f = notes[Math.floor(Math.random() * notes.length)] * rand(0.78, 0.82);
-      tone(f, ctx.currentTime, 1.4, 0.05, bus(0.35, 1), { glideFrom: f * 1.7 });
-    }
-    setTimeout(drip, rand(6000, 14000));
-  };
-  setTimeout(drip, rand(3000, 7000));
 }
 
 export const audio = {
@@ -147,6 +143,12 @@ export const audio = {
 
   get level() {
     return master ? master.gain.value : 0;
+  },
+
+  // The visitor's step: the music plays, rests after the break, or thins out.
+  mood(next) {
+    step = next;
+    music?.mood(next);
   },
 
   toggleMute() {
@@ -212,5 +214,7 @@ export const audio = {
       tone(f * ratio, t, decay, g, out);
       tone(f * ratio * 1.0035, t, decay * 0.9, g * 0.7, out);
     }
+    // Then the koto answers: a sweep up the strings.
+    music?.arrive();
   },
 };

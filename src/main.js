@@ -163,6 +163,7 @@ function freshSeed() {
 function setState(next) {
   state = next;
   document.body.dataset.state = next;
+  audio.mood(next);
 }
 
 const isPortrait = () => camera.aspect < 0.9;
