@@ -198,7 +198,8 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
     }
     if (!world || phase === 'settled') return;
 
-    world.step(dt, onContact);
+    // While gathering, pieces that rested on a lifted one settle again.
+    world.step(dt, phase === 'gather' ? null : onContact);
     if (phase === 'broken') {
       brokenTime += dt;
       if (brokenTime > 0.25 && !contactsOn) {
@@ -213,6 +214,17 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
         onSettled?.();
       }
     }
+  }
+
+  function beginGather() {
+    phase = 'gather';
+  }
+
+  // Hands a piece over to the mend: it leaves the physics world.
+  function takeShard(shard) {
+    if (!shard.entry) return;
+    world.removeBody(shard.entry);
+    shard.entry = null;
   }
 
   function shardBounds() {
@@ -249,6 +261,14 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
     update,
     reset,
     shardBounds,
+    beginGather,
+    takeShard,
+    get pot() {
+      return pot;
+    },
+    get cracks() {
+      return fractureResult?.cracks;
+    },
     get lift() {
       return lift;
     },

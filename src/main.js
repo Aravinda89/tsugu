@@ -1,9 +1,9 @@
 // 継ぐ Tsugu: app start and state machine.
 // choose → lift → fall → shatter → still → gather → gold → keep
-// Phases 1–2 wire up choose through still; gather, gold and keep arrive with Phase 3.
 
 import './style.css';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createScene, frameCamera } from './scene.js';
 import { createStand, STAND_TOP } from './scene/stand.js';
 import { createDust } from './scene/dust.js';
@@ -12,6 +12,10 @@ import { PROFILE_ORDER } from './pot/profiles.js';
 import { createFractureClient } from './fracture/client.js';
 import { loadPhysics } from './physics.js';
 import { createDrop } from './drop.js';
+import { createMend } from './mend.js';
+import { createGold } from './gold.js';
+import { meiFor } from './mei.js';
+import { savePNG } from './save.js';
 import { createUI } from './ui.js';
 import { tween, updateTweens, ease, lerp } from './utils/tween.js';
 import { hashSeed } from './utils/random.js';
@@ -33,6 +37,20 @@ const drop = createDrop({
   onImpact: () => setState('shatter'),
   onSettled: still,
 });
+const mend = createMend({ camera, canvas: renderer.domElement, drop, onAllHome: whole });
+
+// Orbiting is only allowed in the Keep step.
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enabled = false;
+controls.enablePan = false;
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.5;
+controls.zoomSpeed = 0.6;
+controls.minPolarAngle = THREE.MathUtils.degToRad(35);
+controls.maxPolarAngle = THREE.MathUtils.degToRad(86);
+
+let gold = null;
 
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -111,10 +129,13 @@ function heroFraming(station, lifted = 0) {
     : frameCamera(camera, target, station.width, h, 0.46, 0.5);
 }
 
-// After the break: everything that fell, seen a little more from above.
+// After the break: everything that fell, and the place above the stand where
+// the pot will be put back together, seen a little more from above.
 function shardsFraming() {
   const box = drop.shardBounds();
   box.union(new THREE.Box3().setFromObject(chosen.stand));
+  chosen.pot.geometry.computeBoundingBox();
+  box.union(chosen.pot.geometry.boundingBox.clone().applyMatrix4(mend.assemblyMatrix()));
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const target = new THREE.Vector3(center.x * 0.6, 0.15, center.z * 0.5);
@@ -199,10 +220,63 @@ async function still() {
   await moveCamera(shardsFraming(), 3.2);
   await new Promise((r) => setTimeout(r, 900));
   if (state !== 'still') return;
-  // Phase 3 makes the pieces tappable.
   setState('gather');
+  mend.begin(chosen.seed);
   ui.setPrompt('Gather the pieces', -0.6);
   againButton.show();
+}
+
+// --- Gold and keep -------------------------------------------------------------
+
+// Every piece is home: swap them for the intact pot (no hairline gaps), let
+// it settle onto its stand, then the lacquer runs and the gold takes.
+async function whole() {
+  setState('gold');
+  againButton.hide();
+  const pot = drop.pot;
+  for (const s of drop.shards) s.mesh.visible = false;
+  mend.assembly.decompose(pot.position, pot.quaternion, pot.scale);
+  pot.visible = true;
+
+  gold = createGold(drop.cracks, { envMap: view.envMap, seed: chosen.seed });
+  gold.flow = 0;
+  gold.gild = 0;
+  pot.add(gold.mesh);
+
+  const fromY = pot.position.y;
+  const restY = new THREE.Vector3().setFromMatrixPosition(drop.restMatrix).y;
+  await Promise.all([
+    tween({ duration: 1.8, easing: ease.joHaKyu, onUpdate: (k) => (pot.position.y = lerp(fromY, restY, k)) }),
+    moveCamera(heroFraming(chosen), 2.4),
+  ]);
+  if (state !== 'gold') return;
+
+  await Promise.all([
+    tween({ duration: 2.4, easing: ease.outCubic, onUpdate: (k) => (gold.flow = k) }),
+    tween({ duration: 2.8, delay: 1.2, easing: ease.inOutSine, onUpdate: (k) => (gold.gild = k) }),
+  ]);
+  if (state !== 'gold') return;
+  keep();
+}
+
+// The pot turns slowly on its stand; the visitor may walk around it.
+function keep() {
+  setState('keep');
+  chosen.group.attach(drop.pot);
+  controls.target.copy(look);
+  const d = camera.position.distanceTo(look);
+  controls.minDistance = d * 0.6;
+  controls.maxDistance = d * 1.5;
+  controls.enabled = true;
+  controls.update();
+  ui.setPrompt(meiFor(chosen.seed).line, -0.4);
+  saveButton.show();
+  againButton.show();
+}
+
+async function save() {
+  const { kanji } = meiFor(chosen.seed);
+  await savePNG({ renderer, scene, camera, seed: chosen.seed, filename: `tsugu-${chosen.type}-${kanji}.png` });
 }
 
 // The pots not chosen drift back into the dark.
@@ -225,14 +299,20 @@ function fadeAway(station, dir) {
   });
 }
 
+const saveButton = ui.button('save', 'Save', save);
 const againButton = ui.button('again', 'Again', again);
 
 async function again() {
   if (busy) return;
   busy = true;
   againButton.hide();
+  saveButton.hide();
   ui.setPrompt(null);
   await ui.close();
+  controls.enabled = false;
+  mend.reset();
+  gold?.dispose();
+  gold = null;
   drop.reset();
   baseSeed = freshSeed();
   chosen = null;
@@ -306,6 +386,8 @@ canvas.addEventListener('pointerup', (e) => {
   if (state === 'choose' && !busy) {
     const station = pick(e);
     if (station) choose(station);
+  } else if (state === 'gather' && !busy && mend.tap(e)) {
+    ui.setPrompt(null);
   }
 });
 
@@ -318,7 +400,9 @@ canvas.addEventListener('pointermove', (e) => {
   if (state === 'choose') {
     hovered = pick(e);
     canvas.style.cursor = hovered ? 'pointer' : '';
-  } else {
+  } else if (state === 'gather') {
+    canvas.style.cursor = mend.hovering(e) ? 'pointer' : '';
+  } else if (state !== 'keep') {
     canvas.style.cursor = state === 'lift' && pick(e) === chosen ? 'grab' : '';
   }
 });
@@ -338,7 +422,7 @@ window.addEventListener('resize', () => {
     setCamera(chooseFraming());
   } else if (state === 'gather') {
     setCamera(shardsFraming());
-  } else if (chosen) {
+  } else if (chosen && state !== 'keep') {
     setCamera(heroFraming(chosen, drop.lift));
   }
 });
@@ -363,6 +447,13 @@ renderer.setAnimationLoop((now) => {
     camera.position.lerp(framing.position, k);
     look.lerp(framing.target, k);
     camera.lookAt(look);
+    fitFog();
+  }
+  // Keep: a slow turntable, and the visitor's own orbit.
+  if (state === 'keep') {
+    chosen.group.rotation.y += dt * 0.14;
+    controls.update();
+    look.copy(controls.target);
     fitFog();
   }
   dust.update(now / 1000, renderer.getPixelRatio());
@@ -392,5 +483,5 @@ requestAnimationFrame(() => {
 });
 
 if (import.meta.env.DEV) {
-  window.__tsugu = { scene, camera, renderer, drop, stations: () => stations, state: () => state };
+  window.__tsugu = { scene, camera, renderer, drop, mend, stations: () => stations, state: () => state, gold: () => gold };
 }

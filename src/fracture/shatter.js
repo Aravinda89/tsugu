@@ -335,7 +335,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
     });
   }
 
-  return { shards, cracks: buildCracks(crackEdges, rimCracks, point3, segT), seeds };
+  return { shards, cracks: buildCracks(crackEdges, rimCracks, sampleAt, segT), seeds };
 }
 
 // A single convex hull of a curved shard fills the hollow under its curve, so
@@ -383,7 +383,7 @@ function splitHulls(positions, maxPoints = 90) {
 
 // Chains crack edges into polylines on the outer and inner surfaces, plus a
 // short line across the lip wherever a crack reaches the rim.
-function buildCracks(crackEdges, rimCracks, point3, segT) {
+function buildCracks(crackEdges, rimCracks, surfaceAt, segT) {
   const adjacency = new Map();
   const edges = [...crackEdges.values()];
   edges.forEach((e, idx) => {
@@ -422,19 +422,26 @@ function buildCracks(crackEdges, rimCracks, point3, segT) {
     if (!used[idx]) chains.push(walk(idx, e.a));
   });
 
-  const toArray = (patch, chain) => {
-    const arr = new Float32Array(chain.length * 3);
-    chain.forEach((pt, k) => point3(patch, pt).toArray(arr, k * 3));
-    return arr;
+  // Each line keeps the surface normal at every point, so the gold can sit on it.
+  const line = (patch, pts) => {
+    const points = new Float32Array(pts.length * 3);
+    const normals = new Float32Array(pts.length * 3);
+    pts.forEach((pt, k) => {
+      const s = surfaceAt(patch, pt.fi, pt.fj);
+      const l = Math.hypot(s.n[0], s.n[1], s.n[2]) || 1;
+      for (let x = 0; x < 3; x++) {
+        points[k * 3 + x] = s.p[x];
+        normals[k * 3 + x] = s.n[x] / l;
+      }
+    });
+    return { points, normals };
   };
-  const rim = [...rimCracks.values()].map((fi) => {
-    const arr = new Float32Array((segT + 1) * 3);
-    for (let r = 0; r <= segT; r++) point3(2, { fi, fj: r }).toArray(arr, r * 3);
-    return arr;
-  });
+  const rim = [...rimCracks.values()].map((fi) =>
+    line(2, Array.from({ length: segT + 1 }, (_, r) => ({ fi, fj: r }))),
+  );
   return {
-    outer: chains.map((c) => toArray(0, c)),
-    inner: chains.map((c) => toArray(1, c)),
+    outer: chains.map((c) => line(0, c)),
+    inner: chains.map((c) => line(1, c)),
     rim,
   };
 }

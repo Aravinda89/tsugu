@@ -115,6 +115,23 @@ Do **not** use CSG libraries or pre-fractured Blender models. The pot is a surfa
   - It depends on the environment map for reflections; without it the gold looks brown.
 - **Reveal.** Grow each line along its length (draw range or a shader clip by arc length), so the gold appears to flow into the cracks.
 
+**As built (Phase 3).**
+- **Reassembly:** the pot is put back together at `HOVER` above its stand, so pieces still on the stand are never in the way. When whole, it swaps for the intact mesh and settles onto the stand.
+- **Gather physics:** keeps stepping, so pieces resting on a lifted one fall.
+- **Tapping:** a near miss (within 56 px on screen) picks the nearest piece.
+- **Gold shader:** one `MeshPhysicalMaterial` patched with `onBeforeCompile`.
+  - `uFlow` clips by per-line arc length (urushi runs).
+  - `uGild` turns grains of lacquer to gold at their own moment.
+  - The room reflection is scaled down on un-gilded lacquer, or wet urushi reads white.
+- **Gold colour:** deeper than textbook gold (`0.8, 0.46, 0.09`, `envMapIntensity` 0.6), because a thin bead is mostly highlight and paler gold tone-maps to cream.
+- **Gold environment:** the material takes `envMap` directly. A material that relies on `scene.environment` gets the dark room's `environmentIntensity` (0.22) instead.
+- **Crack data:** crack lines carry surface normals (`{ points, normals }`) from the fracture.
+- **Keep:**
+  - The pot and stand turn together.
+  - OrbitControls are enabled only in this step (no pan, limited zoom and polar angle).
+  - Save composites the haze, vignette and hanko onto the frame (`save.js`).
+  - The mei comes from `mei.js`.
+
 ---
 
 ## Performance and mobile

@@ -42,7 +42,9 @@ self.onmessage = ({ data }) => {
         hulls: s.hulls,
       };
     });
-    for (const line of [...cracks.outer, ...cracks.inner, ...cracks.rim]) transfer.push(line.buffer);
+    for (const line of [...cracks.outer, ...cracks.inner, ...cracks.rim]) {
+      transfer.push(line.points.buffer, line.normals.buffer);
+    }
     self.postMessage({ id, shards: out, cracks }, transfer);
   }
 };

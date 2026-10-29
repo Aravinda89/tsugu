@@ -74,7 +74,7 @@ export function createScene(container) {
     camera.updateProjectionMatrix();
   }
 
-  return { renderer, scene, camera, key, floor, resize, coarse };
+  return { renderer, scene, camera, key, floor, resize, coarse, envMap: scene.environment };
 }
 
 // Places the camera so a box of (width × height) centred on `target` fills

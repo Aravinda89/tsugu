@@ -153,7 +153,13 @@ for (const type of PROFILE_ORDER) {
     it('keeps crack lines for the gold', () => {
       expect(cracks.outer.length).toBeGreaterThan(0);
       expect(cracks.inner.length).toBe(cracks.outer.length);
-      for (const line of cracks.outer) expect(line.length).toBeGreaterThanOrEqual(6);
+      for (const line of [...cracks.outer, ...cracks.inner, ...cracks.rim]) {
+        expect(line.points.length).toBeGreaterThanOrEqual(6);
+        expect(line.normals.length).toBe(line.points.length);
+        for (let k = 0; k < line.normals.length; k += 3) {
+          expect(Math.hypot(line.normals[k], line.normals[k + 1], line.normals[k + 2])).toBeCloseTo(1, 3);
+        }
+      }
     });
   });
 }
