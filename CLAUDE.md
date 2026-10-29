@@ -143,7 +143,7 @@ It must run smoothly on mid-range phones.
 - Only one shadow-casting light.
 - Keep gestures separate:
   - A single finger lifts, taps and (later) traces.
-  - Orbiting the camera is only allowed in the Keep step.
+  - Orbiting the camera is allowed only in the Gather and Keep steps. In Gather, a drag orbits and a short tap picks a piece.
 
 ---
 
@@ -204,10 +204,11 @@ Do one phase at a time, and stop after each one so I can test it in the browser 
 - **Light:** one warm key light from the upper left and front, falling through a soft shōji lattice. The shadow side falls to near black.
 - **Clay:** matte, rough, unglazed terracotta, mottled, with specks and pits. It darkens toward the base.
 - **Stands:** each pot sits on its own dark, weathered, cracked wooden stand with feet.
-- **UI:** thin gold hairlines (`#c9a35c`).
+- **UI:** gold (`#dcb76c`), with hairline rules and pill borders.
   - 継ぐ written vertically at the top left.
   - Icon-only pill buttons centred at the bottom, with `aria-label` and a hover tooltip.
   - One short serif prompt line.
+  - **Legibility:** text must stay clearly readable. Use semi-bold weights (Cormorant Garamond and Shippori Mincho 600), a soft dark text shadow, and no faint or hairline-thin type.
 
 ## Japanese touches (decided)
 Draw from craft and tea-room tradition, never decoration: no sakura, torii or "oriental" fonts.

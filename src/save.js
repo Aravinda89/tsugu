@@ -5,7 +5,7 @@ import { createRandom, hashSeed } from './utils/random.js';
 
 export async function savePNG({ renderer, scene, camera, filename, seed = 1 }) {
   try {
-    await document.fonts.load('100px "Shippori Mincho"', '継');
+    await document.fonts.load('600 100px "Shippori Mincho"', '継');
   } catch {
     // A serif fallback is fine.
   }
@@ -84,7 +84,7 @@ function drawHanko(ctx, x, y, size, seed) {
   g.fill();
 
   g.globalCompositeOperation = 'destination-out';
-  g.font = `${Math.round(size * 0.68)}px "Shippori Mincho", "Yu Mincho", serif`;
+  g.font = `600 ${Math.round(size * 0.68)}px "Shippori Mincho", "Yu Mincho", serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText('継', size / 2, size * 0.53);

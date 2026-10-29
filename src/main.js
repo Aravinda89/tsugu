@@ -39,7 +39,7 @@ const drop = createDrop({
 });
 const mend = createMend({ camera, canvas: renderer.domElement, drop, onAllHome: whole });
 
-// Orbiting is only allowed in the Keep step.
+// Orbiting is allowed only while gathering and in Keep (see enableOrbit).
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enabled = false;
 controls.enablePan = false;
@@ -222,8 +222,21 @@ async function still() {
   if (state !== 'still') return;
   setState('gather');
   mend.begin(chosen.seed);
+  // Walk around the pieces to find them all; a tap still picks one.
+  enableOrbit({ minPolar: 12, zoomIn: 0.45 });
   ui.setPrompt('Gather the pieces', -0.6);
   againButton.show();
+}
+
+// Orbit around the current look target. Allowed only in Gather and Keep.
+function enableOrbit({ minPolar = 35, zoomIn = 0.6, zoomOut = 1.5 } = {}) {
+  controls.target.copy(look);
+  const d = camera.position.distanceTo(look);
+  controls.minDistance = d * zoomIn;
+  controls.maxDistance = d * zoomOut;
+  controls.minPolarAngle = THREE.MathUtils.degToRad(minPolar);
+  controls.enabled = true;
+  controls.update();
 }
 
 // --- Gold and keep -------------------------------------------------------------
@@ -232,6 +245,7 @@ async function still() {
 // it settle onto its stand, then the lacquer runs and the gold takes.
 async function whole() {
   setState('gold');
+  controls.enabled = false;
   againButton.hide();
   const pot = drop.pot;
   for (const s of drop.shards) s.mesh.visible = false;
@@ -263,12 +277,7 @@ async function whole() {
 function keep() {
   setState('keep');
   chosen.group.attach(drop.pot);
-  controls.target.copy(look);
-  const d = camera.position.distanceTo(look);
-  controls.minDistance = d * 0.6;
-  controls.maxDistance = d * 1.5;
-  controls.enabled = true;
-  controls.update();
+  enableOrbit();
   ui.setPrompt(meiFor(chosen.seed).line, -0.4);
   saveButton.show();
   againButton.show();
@@ -401,7 +410,7 @@ canvas.addEventListener('pointermove', (e) => {
     hovered = pick(e);
     canvas.style.cursor = hovered ? 'pointer' : '';
   } else if (state === 'gather') {
-    canvas.style.cursor = mend.hovering(e) ? 'pointer' : '';
+    canvas.style.cursor = mend.hovering(e) ? 'pointer' : 'grab';
   } else if (state !== 'keep') {
     canvas.style.cursor = state === 'lift' && pick(e) === chosen ? 'grab' : '';
   }
@@ -420,9 +429,7 @@ window.addEventListener('resize', () => {
   if (state === 'choose') {
     layoutStations();
     setCamera(chooseFraming());
-  } else if (state === 'gather') {
-    setCamera(shardsFraming());
-  } else if (chosen && state !== 'keep') {
+  } else if (chosen && state !== 'keep' && state !== 'gather') {
     setCamera(heroFraming(chosen, drop.lift));
   }
 });
@@ -449,9 +456,9 @@ renderer.setAnimationLoop((now) => {
     camera.lookAt(look);
     fitFog();
   }
-  // Keep: a slow turntable, and the visitor's own orbit.
-  if (state === 'keep') {
-    chosen.group.rotation.y += dt * 0.14;
+  // Gather and Keep: the visitor's own orbit; in Keep, a slow turntable too.
+  if (state === 'gather' || state === 'keep') {
+    if (state === 'keep') chosen.group.rotation.y += dt * 0.14;
     controls.update();
     look.copy(controls.target);
     fitFog();
