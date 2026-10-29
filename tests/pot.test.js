@@ -8,9 +8,9 @@ const small = { segU: 48, segV: 32, segT: 4 };
 
 describe('pot geometry', () => {
   it('is deterministic for a type + seed', () => {
-    const a = buildPotGeometry(createPotShape('chatti', 42), small);
-    const b = buildPotGeometry(createPotShape('chatti', 42), small);
-    const c = buildPotGeometry(createPotShape('chatti', 43), small);
+    const a = buildPotGeometry(createPotShape('tsubo', 42), small);
+    const b = buildPotGeometry(createPotShape('tsubo', 42), small);
+    const c = buildPotGeometry(createPotShape('tsubo', 43), small);
     expect(Array.from(a.attributes.position.array)).toEqual(Array.from(b.attributes.position.array));
     expect(Array.from(a.attributes.position.array)).not.toEqual(Array.from(c.attributes.position.array));
   });
@@ -73,13 +73,67 @@ describe('pot geometry', () => {
     });
   }
 
-  it('chatti is widest at about 45% of its height', () => {
-    const lut = getProfileLUT('chatti');
+  it('tsubo carries its weight high: widest at about 70% of its height', () => {
+    const lut = getProfileLUT('tsubo');
     const ratio = lut.maxRadiusHeight / lut.height;
-    expect(ratio).toBeGreaterThan(0.4);
-    expect(ratio).toBeLessThan(0.5);
-    // Height ≈ 0.9 × belly width.
-    expect(lut.height / (lut.maxRadius * 2)).toBeCloseTo(0.9, 1);
+    expect(ratio).toBeGreaterThan(0.6);
+    expect(ratio).toBeLessThan(0.78);
+  });
+
+  it('tokkuri is full low down, with a narrow neck', () => {
+    const lut = getProfileLUT('tokkuri');
+    expect(lut.maxRadiusHeight / lut.height).toBeLessThan(0.4);
+    let neck = Infinity;
+    for (let i = 0; i < lut.r.length; i++) {
+      if (lut.y[i] > lut.maxRadiusHeight) neck = Math.min(neck, lut.r[i]);
+    }
+    expect(neck / lut.maxRadius).toBeLessThan(0.3);
+  });
+
+  it('chawan is wider than it is tall', () => {
+    const lut = getProfileLUT('chawan');
+    expect(lut.maxRadius * 2).toBeGreaterThan(lut.height * 1.5);
+  });
+
+  it('inner wall never folds over itself', () => {
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    const oa = new THREE.Vector3(), ob = new THREE.Vector3();
+    const steps = 400;
+    for (const type of PROFILE_ORDER) {
+      for (const seed of [5, 11, 23]) {
+        const shape = createPotShape(type, seed);
+        for (const u of [0, 0.2, 0.45, 0.7]) {
+          let worst = Infinity;
+          for (let k = 1; k < steps - 1; k++) {
+            shape.surfacePoint(u, k / steps, 0, oa);
+            shape.surfacePoint(u, (k + 1) / steps, 0, ob);
+            shape.surfacePoint(u, k / steps, 1, a);
+            shape.surfacePoint(u, (k + 1) / steps, 1, b);
+            // The inner wall runs the same way as the outer one, never backwards.
+            const outer = ob.sub(oa);
+            worst = Math.min(worst, b.sub(a).dot(outer) / outer.lengthSq());
+          }
+          expect(worst, `${type} seed ${seed} u ${u}`).toBeGreaterThan(0.15);
+        }
+      }
+    }
+  });
+
+  it('kiln ash settles from above: in range, never under the base', () => {
+    for (const type of PROFILE_ORDER) {
+      const geometry = buildPotGeometry(createPotShape(type, 9), small);
+      const marks = geometry.attributes.kiln.array;
+      let most = 0;
+      for (let k = 0; k < marks.length; k++) {
+        expect(marks[k]).toBeGreaterThanOrEqual(0);
+        expect(marks[k]).toBeLessThanOrEqual(1);
+        if (k % 2 === 0) most = Math.max(most, marks[k]);
+      }
+      expect(most, `${type} has some ash`).toBeGreaterThan(0.3);
+      // The base's underside faces the kiln floor: no ash there.
+      const shape = createPotShape(type, 9);
+      for (const u of [0, 0.25, 0.5, 0.75]) expect(shape.kilnAt(u, 0.05, 0)[0]).toBe(0);
+    }
   });
 
   it('inner wall stays inside the outer wall', () => {

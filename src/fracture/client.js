@@ -17,6 +17,7 @@ export function createFractureClient() {
         g.setAttribute('normal', new THREE.BufferAttribute(s.attrs.normal, 3));
         g.setAttribute('uv', new THREE.BufferAttribute(s.attrs.uv, 2));
         g.setAttribute('color', new THREE.BufferAttribute(s.attrs.color, 3));
+        g.setAttribute('kiln', new THREE.BufferAttribute(s.attrs.kiln, 2));
         g.setIndex(new THREE.BufferAttribute(s.index, 1));
         for (const { start, count, materialIndex } of s.groups) g.addGroup(start, count, materialIndex);
         g.computeBoundingSphere();
@@ -30,7 +31,7 @@ export function createFractureClient() {
     // Hands the worker the intact pot's grid (and lets it warm up on it).
     setPot(geometry) {
       const msg = { type: 'pot', grid: geometry.userData.grid };
-      for (const name of ['position', 'normal', 'uv', 'color']) msg[name] = geometry.attributes[name].array.slice();
+      for (const name of ['position', 'normal', 'uv', 'color', 'kiln']) msg[name] = geometry.attributes[name].array.slice();
       worker.postMessage(msg);
     },
 

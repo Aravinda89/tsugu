@@ -9,7 +9,7 @@ let geometry = null;
 self.onmessage = ({ data }) => {
   if (data.type === 'pot') {
     geometry = new THREE.BufferGeometry();
-    for (const [name, size] of [['position', 3], ['normal', 3], ['uv', 2], ['color', 3]]) {
+    for (const [name, size] of [['position', 3], ['normal', 3], ['uv', 2], ['color', 3], ['kiln', 2]]) {
       geometry.setAttribute(name, new THREE.BufferAttribute(data[name], size));
     }
     geometry.userData.grid = data.grid;
@@ -29,7 +29,7 @@ self.onmessage = ({ data }) => {
     const out = shards.map((s) => {
       const g = s.geometry;
       const attrs = {};
-      for (const name of ['position', 'normal', 'uv', 'color']) {
+      for (const name of ['position', 'normal', 'uv', 'color', 'kiln']) {
         attrs[name] = g.attributes[name].array;
         transfer.push(attrs[name].buffer);
       }

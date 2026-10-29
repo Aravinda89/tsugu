@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createScene, frameCamera } from './scene.js';
 import { createStand, STAND_TOP } from './scene/stand.js';
 import { createDust } from './scene/dust.js';
-import { createPot, createEdgeMaterial } from './pot/buildPot.js';
+import { createPot } from './pot/buildPot.js';
 import { PROFILE_ORDER } from './pot/profiles.js';
 import { createFractureClient } from './fracture/client.js';
 import { loadPhysics } from './physics.js';
@@ -42,7 +42,6 @@ scene.add(dust.points);
 const drop = createDrop({
   scene,
   fracture: createFractureClient(),
-  edgeMaterial: createEdgeMaterial(),
   onImpact: () => setState('shatter'),
   onSettled: still,
 });
@@ -102,6 +101,24 @@ function applyLanguage() {
   ui.setSubtitle(words().subtitle);
   ui.relabel();
   if (step) ui.swapText(lineFor(step), words().hints[device][step]);
+  nameStations();
+}
+
+// Each pot's name under its stand while choosing: 壺 · storage jar, or 壺 · つぼ.
+const placards = ui.placards(PROFILE_ORDER.length);
+
+function nameStations() {
+  stations.forEach((s, i) => placards.name(i, s.shape.profile.kanji, words().pots[s.type], lang));
+}
+
+const below = new THREE.Vector3();
+function placePlacards() {
+  const rect = renderer.domElement.getBoundingClientRect();
+  stations.forEach((s, i) => {
+    // Just in front of the foot of the stand.
+    below.set(s.group.position.x, 0, s.depth / 2 + 0.06).project(camera);
+    placards.place(i, rect.left + ((below.x + 1) / 2) * rect.width, rect.top + ((1 - below.y) / 2) * rect.height + 10);
+  });
 }
 
 // Top right: sound on/off and the language switch.
@@ -115,7 +132,6 @@ ui.cornerControls({
     applyLanguage();
   },
 });
-applyLanguage();
 
 // Sound may only start from a gesture: the first touch, click or key.
 for (const type of ['pointerdown', 'keydown']) {
@@ -172,6 +188,7 @@ function buildStations() {
     return { type, seed, shape, pot: mesh, stand, group, width, depth, lift: 0 };
   });
   layoutStations();
+  nameStations();
 }
 
 function layoutStations() {
@@ -259,6 +276,7 @@ async function choose(station) {
   hovered = null;
   renderer.domElement.style.cursor = '';
   hush();
+  placards.hide();
 
   for (const other of stations) {
     if (other !== station) fadeAway(other, Math.sign(other.group.position.x - station.group.position.x));
@@ -574,6 +592,7 @@ async function again() {
   setState('choose');
   ui.open();
   say('choose', 0.4, 0.7);
+  placards.show();
   busy = false;
 }
 
@@ -721,6 +740,7 @@ renderer.setAnimationLoop((now) => {
       s.lift += (target - s.lift) * (1 - Math.exp(-dt * 6));
       s.pot.position.y = STAND_TOP + s.lift;
     }
+    placePlacards();
   }
   drop.update(dt);
   // While the pot is raised, the camera eases back to keep it in frame.
@@ -756,12 +776,14 @@ function dispose(root) {
 }
 
 buildStations();
+applyLanguage();
 setState('choose');
 setCamera(chooseFraming());
 if (import.meta.env.DEV) console.debug(`[tsugu] scene built in ${Math.round(performance.now() - startedAt)} ms`);
 requestAnimationFrame(() => {
   ui.open();
   say('choose', 0.8);
+  placards.show();
   // Fetch the physics engine quietly while the visitor chooses.
   setTimeout(loadPhysics, 1200);
 });

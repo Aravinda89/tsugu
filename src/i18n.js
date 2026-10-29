@@ -41,6 +41,12 @@ export const STRINGS = {
       soundOn: 'Sound on',
       soundOff: 'Sound off',
     },
+    // Under each stand while choosing, beneath the kanji.
+    pots: {
+      tokkuri: 'sake flask',
+      tsubo: 'storage jar',
+      chawan: 'tea bowl',
+    },
   },
 
   ja: {
@@ -80,6 +86,11 @@ export const STRINGS = {
       recentre: '元の位置へ',
       soundOn: '音あり',
       soundOff: '音なし',
+    },
+    pots: {
+      tokkuri: 'とっくり',
+      tsubo: 'つぼ',
+      chawan: 'ちゃわん',
     },
   },
 };

@@ -126,6 +126,32 @@ export function createUI(root, { label }) {
       corner.appendChild(lang);
     },
 
+    // While choosing: each pot's name, small, under its stand. main.js
+    // places them every frame (place) and fills in the words (name).
+    placards(count) {
+      const layer = document.createElement('div');
+      layer.className = 'placards';
+      root.querySelector('.guide').before(layer);
+      const items = Array.from({ length: count }, () => {
+        const el = document.createElement('div');
+        el.className = 'placard';
+        el.innerHTML = '<span class="name" lang="ja"></span><span class="word"></span>';
+        layer.appendChild(el);
+        return el;
+      });
+      return {
+        name(i, kanji, word, lang) {
+          items[i].querySelector('.name').textContent = kanji;
+          const w = items[i].querySelector('.word');
+          w.textContent = word;
+          w.lang = lang;
+        },
+        place: (i, x, y) => (items[i].style.transform = `translate(${x}px, ${y}px) translateX(-50%)`),
+        show: () => layer.classList.add('visible'),
+        hide: () => layer.classList.remove('visible'),
+      };
+    },
+
     button(icon, key, onClick) {
       const el = iconButton(actions, icon, key, () => el.classList.contains('visible') && onClick(), 'pill');
       return {

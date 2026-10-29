@@ -6,7 +6,7 @@ import { buildGoldGeometry, createGold, nearestOnCracks } from '../src/gold.js';
 import { meiFor, MEI } from '../src/mei.js';
 
 describe('gold seams', () => {
-  const geometry = buildPotGeometry(createPotShape('chatti', 21));
+  const geometry = buildPotGeometry(createPotShape('tsubo', 21));
   const { cracks } = fracturePot(geometry, { count: 15, impact: new THREE.Vector3(0.1, 0, 0.1), seed: 4 });
   const gold = buildGoldGeometry(cracks, 4);
 

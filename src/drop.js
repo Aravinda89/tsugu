@@ -15,7 +15,7 @@ const MIN_LIFT = 0.22;
 const GRAVITY = 12;
 const BREAK_SPEED = 2;
 
-export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled }) {
+export function createDrop({ scene, fracture, onImpact, onSettled }) {
   let station = null;
   let pot = null;
   let phase = 'idle'; // idle → lift → waiting → fall → broken → settled
@@ -158,7 +158,7 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
     const strength = THREE.MathUtils.clamp(impact.speed / Math.sqrt(2 * GRAVITY * MAX_LIFT), 0, 1);
     const toPiece = new THREE.Vector3();
     for (const data of fractureResult.shards) {
-      const mesh = new THREE.Mesh(data.geometry, [pot.material, edgeMaterial]);
+      const mesh = new THREE.Mesh(data.geometry, [pot.material, pot.userData.edgeMaterial]);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.position.copy(data.rest).applyMatrix4(pot.matrixWorld);
@@ -177,7 +177,9 @@ export function createDrop({ scene, fracture, edgeMaterial, onImpact, onSettled 
       if (data.lost) {
         // The lost piece skitters away into the dark, past the bounds, and
         // fades as it goes (its own materials, so only it fades).
-        mesh.material = mesh.material.map((m) => Object.assign(m.clone(), { transparent: true }));
+        mesh.material = mesh.material.map((m) =>
+          Object.assign(m.clone(), { transparent: true, onBeforeCompile: m.onBeforeCompile }),
+        );
         linvel.set(rng.range(-0.6, 0.6), 0.6, -1).normalize().multiplyScalar(rng.range(3.4, 4.2));
         const entry = world.addBody(mesh, data.hulls, { linvel, angvel, kind: 'lost', friction: 0.02, restitution: 0.25 });
         shards.push({ mesh, entry, rest: data.rest, lost: true, geometry: data.geometry });

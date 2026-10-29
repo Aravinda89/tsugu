@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { STRINGS, meiLine } from '../src/i18n.js';
 import { MEI, meiFor } from '../src/mei.js';
+import { PROFILES, PROFILE_ORDER } from '../src/pot/profiles.js';
 
 // Every leaf key path, e.g. "hints.touch.gather".
 function paths(obj, prefix = '') {
@@ -21,6 +22,15 @@ describe('English and Japanese', () => {
   it('have no empty strings', () => {
     for (const lang of ['en', 'ja']) {
       for (const p of paths(STRINGS[lang])) expect(String(leaf(STRINGS[lang], p)).trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('name every pot', () => {
+    for (const lang of ['en', 'ja']) {
+      for (const type of PROFILE_ORDER) {
+        expect(STRINGS[lang].pots[type]).toBeTruthy();
+        expect(PROFILES[type].kanji).toMatch(/^[一-鿿]+$/);
+      }
     }
   });
 

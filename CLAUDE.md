@@ -18,10 +18,11 @@ This is a portfolio pet project and must deploy for free (GitHub Pages).
 ---
 
 ## Experience flow
-1. **Choose.** Three handmade-looking clay pots sit on a low wooden surface. The user taps one.
-   - Sri Lankan clay chatti: wide round belly, short neck, wide mouth
-   - Tall water pot: narrow neck
-   - Japanese-style tea bowl (chawan): low and wide
+1. **Choose.** Three traditional Japanese pots, each from one of the old kilns, sit on low wooden stands. The user taps one.
+   - 徳利 tokkuri (Bizen): sake flask, low full body, long narrow neck
+   - 壺 tsubo (Shigaraki): storage jar, broad high shoulder, short neck, rolled lip
+   - 茶碗 chawan (Tamba): tea bowl with a foot ring, low and wide
+   - Each stand has a small name beneath it while choosing (壺 · storage jar, or 壺 · つぼ in Japanese).
 2. **Lift and drop.** The user drags the pot upward, and releasing drops it onto the floor. A higher lift means a harder impact and more pieces, within limits.
 3. **Stillness.** After the shards settle, there are about 3 seconds of silence before a subtle prompt appears.
 4. **Gather.** The user taps a shard, and it lifts and floats back to its place on the pot with a smooth ease.
@@ -220,7 +221,7 @@ Do one phase at a time, and stop after each one so I can test it in the browser 
    - One small shard is "lost", and its hole is filled with solid gold, as real kintsugi sometimes does.
    - Add sound design using CC0 sounds: impact, ceramic clinks, soft ambience.
 6. **Share and shelf (optional).**
-   - **Share link.** Put the pot type and seed in the URL, e.g. `?pot=chatti&seed=123`, so anyone can open the same mended pot. This needs no backend.
+   - **Share link.** Put the pot type and seed in the URL, e.g. `?pot=tsubo&seed=123`, so anyone can open the same mended pot. This needs no backend.
    - **Shared shelf.** A gallery of everyone's mended pots on a free backend (Supabase or Firebase). Store only the pot type, seed and traced strokes, not images, because pots can be regenerated.
 
 ---
@@ -262,6 +263,13 @@ Draw from craft and tea-room tradition, never decoration: no sakura, torii or "o
   - **Keep:** the single end line is the pot's seeded **mei (銘)**, a two-kanji poetic name with its English, e.g. 夕霧 · evening mist. Add its kanji to the Shippori Mincho `text=` font subset.
   - **Save:** the PNG gets the vignette and a small vermilion 継 **hanko** seal.
 - **Phase 5 sound:** soft rain, water-drip chimes (*suikinkutsu*), and one *rin* bell when the gold completes.
+- **Japanese pots (decided):** the three forms are tokkuri, tsubo and chawan, each fired at one of the old wood-fired kilns (`KILNS` in `buildPot.js`). All stay unglazed except for natural wood ash.
+  - **Shigaraki (tsubo):** coarse orange clay, white feldspar stones, green glassy ash on the shoulder.
+  - **Bizen (tokkuri):** dense red-brown clay, golden goma (sesame) ash specks, a faint satin sheen.
+  - **Tamba (chawan):** brown clay, olive ash running from the rim, and a glassy ash pool in the well.
+  - **Kiln marks:** the `kiln` vertex attribute (x: ash, y: fire flash) comes from `kilnAt()`. Ash falls on what faces up, most on the seeded fire side, and little reaches inside a narrow mouth. The clay shader (`withKilnMarks`) tints it, lowers roughness and flattens the bump where ash lies thick. Shards carry the attribute; broken edges show each kiln's inner body (`createEdgeMaterial(kiln)`, kept in `pot.userData.edgeMaterial`).
+  - **Throwing rings (rokuro-me):** shallow ridges in the shape itself (`ringAt`), plus a fine trace in the bump map.
+  - **Profiles:** convex corners keep a radius well above the wall thickness, or the inner wall folds; a test checks this.
 - **Decided against:** a hanging-scroll alcove, a seasonal falling leaf, and a separate 一期一会 line.
 
 ## Working agreements

@@ -27,6 +27,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
   const nrm = geometry.attributes.normal.array;
   const uva = geometry.attributes.uv.array;
   const cola = geometry.attributes.color.array;
+  const kila = geometry.attributes.kiln?.array; // ash and fire flash, two per vertex
 
   const outerPositions = pos.subarray(0, outerRows * stride * 3);
   const seeds = pickSeeds({
@@ -148,7 +149,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
 
   // --- Sampling the intact pot's attributes at a grid point -----------------
   // patch: 0 outer, 1 inner (rows mirrored), 2 rim (fj is the rim row).
-  const sample = { p: [0, 0, 0], n: [0, 0, 0], uv: [0, 0], c: 0 };
+  const sample = { p: [0, 0, 0], n: [0, 0, 0], uv: [0, 0], c: 0, k: [0, 0] };
   function sampleAt(patch, fi, fj) {
     const rows = patch === 2 ? segT : segV;
     const i0 = Math.min(Math.max(Math.floor(fi), 0), segU - 1);
@@ -167,6 +168,11 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
       sample.uv[x] = uva[v00 * 2 + x] * w00 + uva[v10 * 2 + x] * w10 + uva[v01 * 2 + x] * w01 + uva[v11 * 2 + x] * w11;
     }
     sample.c = cola[v00 * 3] * w00 + cola[v10 * 3] * w10 + cola[v01 * 3] * w01 + cola[v11 * 3] * w11;
+    if (kila) {
+      for (let x = 0; x < 2; x++) {
+        sample.k[x] = kila[v00 * 2 + x] * w00 + kila[v10 * 2 + x] * w10 + kila[v01 * 2 + x] * w01 + kila[v11 * 2 + x] * w11;
+      }
+    }
     return sample;
   }
   const point3 = (patch, pt) => {
@@ -179,7 +185,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
   const shards = [];
 
   for (let label = 0; label < shardCount; label++) {
-    const P = [], N = [], UV = [], C = [], I = [];
+    const P = [], N = [], UV = [], C = [], KM = [], I = [];
     // Surface vertices are shared within a shard: grid corners through a flat
     // lookup table, points between corners through a map.
     const shared = new Map();
@@ -196,6 +202,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
       N.push(s.n[0] / l, s.n[1] / l, s.n[2] / l);
       UV.push(s.uv[0], s.uv[1]);
       C.push(s.c, s.c, s.c);
+      KM.push(s.k[0], s.k[1]);
       if (whole) cornerIndex[slot] = idx;
       else shared.set(patch * 1e12 + Math.round(fi * 1000) * 1e6 + Math.round(fj * 1000), idx);
       return idx;
@@ -252,6 +259,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
       N.push(n.x, n.y, n.z);
       UV.push((fi / segU) * repU, t * 0.12);
       C.push(c, c, c);
+      KM.push(0, 0); // fresh breaks: no ash, no fire
       return P.length / 3 - 1;
     };
     for (const edge of wallBoundary) {
@@ -319,6 +327,7 @@ export function fracturePot(geometry, { count = 14, impact, seed = 1 } = {}) {
     g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(N), 3));
     g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(UV), 2));
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(C), 3));
+    g.setAttribute('kiln', new THREE.BufferAttribute(new Float32Array(KM), 2));
     g.setIndex(new THREE.BufferAttribute(new Uint32Array(I), 1));
     g.addGroup(0, clayIndices, 0);
     g.addGroup(clayIndices, I.length - clayIndices, 1);
