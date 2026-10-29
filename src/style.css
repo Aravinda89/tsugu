@@ -1,0 +1,194 @@
+:root {
+  --gold: #c9a35c;
+  --gold-dim: rgba(201, 163, 92, 0.55);
+  --ink: #120c08;
+  --backdrop: #1a130e;
+  --serif: 'Cormorant Garamond', 'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif;
+  --mincho: 'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--backdrop);
+  color: var(--gold);
+  font-family: var(--serif);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+#app,
+canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 78% 72% at 50% 46%,
+    rgba(0, 0, 0, 0) 38%,
+    rgba(10, 6, 4, 0.5) 74%,
+    rgba(6, 4, 3, 0.86) 100%
+  );
+}
+
+/* A warm haze on the unseen wall behind the pot. */
+.glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: radial-gradient(ellipse 46% 50% at 52% 38%, rgba(64, 44, 30, 0.55) 0%, rgba(40, 27, 18, 0.25) 55%, rgba(0, 0, 0, 0) 100%);
+}
+
+.curtain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: #0d0906;
+  opacity: 1;
+  transition: opacity 1.8s ease;
+}
+.curtain.open {
+  opacity: 0;
+}
+
+/* 継ぐ, written top to bottom, in a thin gold hand. */
+.title {
+  position: fixed;
+  top: max(28px, env(safe-area-inset-top));
+  left: max(30px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  pointer-events: none;
+}
+.title .kanji {
+  writing-mode: vertical-rl;
+  font-family: var(--mincho);
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  opacity: 0.92;
+}
+.title .rule {
+  width: 1px;
+  height: 22px;
+  margin-left: 14px;
+  background: var(--gold-dim);
+}
+.title .sub {
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  color: var(--gold-dim);
+  white-space: nowrap;
+}
+
+.prompt {
+  position: fixed;
+  left: 50%;
+  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 74px);
+  transform: translateX(-50%);
+  font-size: 17px;
+  font-weight: 300;
+  letter-spacing: 0.32em;
+  color: var(--gold);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.prompt.visible {
+  opacity: 0.85;
+}
+
+.actions {
+  position: fixed;
+  left: 50%;
+  bottom: max(26px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+}
+
+/* Icon-only pills with a gold hairline, as in the mockup. */
+.pill {
+  position: relative;
+  width: 78px;
+  height: 34px;
+  border-radius: 17px;
+  border: 1px solid var(--gold-dim);
+  background: rgba(18, 12, 8, 0.25);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1s ease, border-color 0.4s ease, background 0.4s ease;
+}
+.pill.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pill:hover,
+.pill:focus-visible {
+  border-color: var(--gold);
+  background: rgba(201, 163, 92, 0.08);
+  outline: none;
+}
+.pill svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1;
+}
+/* The label shows as a quiet tooltip on hover only. */
+.pill::after {
+  content: attr(aria-label);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--gold-dim);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .pill:hover::after {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .title .kanji {
+    font-size: 26px;
+  }
+  .prompt {
+    font-size: 15px;
+    letter-spacing: 0.26em;
+  }
+}
