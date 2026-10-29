@@ -34,6 +34,14 @@ describe('English and Japanese', () => {
     }
   });
 
+  it('say what every step means, and the whole ritual at the end', () => {
+    for (const lang of ['en', 'ja']) {
+      for (const step of [...Object.keys(STRINGS[lang].prompts), 'still', 'gold', 'keep', 'closing']) {
+        expect(STRINGS[lang].meanings[step]).toBeTruthy();
+      }
+    }
+  });
+
   it('give a hint for every step with a prompt, for touch and mouse', () => {
     for (const lang of ['en', 'ja']) {
       for (const step of [...Object.keys(STRINGS[lang].prompts), 'keep']) {

@@ -12,6 +12,18 @@ export const STRINGS = {
       gather: 'Gather the pieces',
       trace: 'Trace the gold',
     },
+    // One plain line per step on what it means, for anyone new to kintsugi;
+    // `closing` is the meaning of the whole ritual, last of all in Keep.
+    meanings: {
+      choose: 'Wabi-sabi: finding beauty in what is imperfect.',
+      lift: 'Everything that is made will one day break.',
+      still: 'A break is not the end of its story.',
+      gather: 'Kintsugi: nothing is thrown away. Every piece returns.',
+      gold: 'Lacquer joins the pieces. Gold fills what was lost.',
+      trace: 'The gold does not hide the cracks. It makes them shine.',
+      keep: 'Its cracks are now part of its story, and its beauty.',
+      closing: 'We all break sometimes. Mended with care, we carry on.',
+    },
     hints: {
       touch: {
         choose: 'Tap a pot to choose it',
@@ -57,6 +69,16 @@ export const STRINGS = {
       lift: '器を持ち上げる',
       gather: 'かけらを集める',
       trace: '金をなぞる',
+    },
+    meanings: {
+      choose: 'わびさび ― 不完全なものに美を見いだす心。',
+      lift: '形あるものは、いつか壊れる。',
+      still: '割れても、物語は終わらない。',
+      gather: '金継ぎ ― 何も捨てない。かけらはみな元の場所へ。',
+      gold: '漆でつなぎ、失われたところは金で満たす。',
+      trace: '金はひびを隠さない。ひびを輝かせる。',
+      keep: 'ひびは今、この器の物語となり、美しさとなった。',
+      closing: '人もまた、ときに割れる。ていねいに繕い、また歩いていく。',
     },
     hints: {
       touch: {

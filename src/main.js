@@ -79,13 +79,23 @@ const viewButtons = ui.viewControls({
 // --- Words: each step's line and its how-to, in the chosen language --------------
 
 let step = null; // the step whose words are showing
+let meant = null; // the step whose meaning is showing; outlasts hush()
+let closingTimer = 0;
 
 function lineFor(s) {
   return s === 'keep' ? meiLine(lang, meiFor(chosen.seed)) : words().prompts[s];
 }
 
+// What the step means, for anyone new to kintsugi: a plain line above the
+// prompt that stays through the step. `null` lets it fade.
+function mean(s, delay = 0) {
+  meant = s;
+  ui.setMeaning(s && words().meanings[s], delay, { closing: s === 'closing' });
+}
+
 function say(s, promptDelay = 0, hintDelay = promptDelay + 0.3) {
   step = s;
+  mean(s, promptDelay - 0.5);
   ui.setPrompt(lineFor(s), promptDelay);
   ui.setHint(words().hints[device][s], hintDelay);
 }
@@ -100,7 +110,7 @@ function applyLanguage() {
   document.documentElement.lang = lang;
   ui.setSubtitle(words().subtitle);
   ui.relabel();
-  if (step) ui.swapText(lineFor(step), words().hints[device][step]);
+  ui.swapText(step && lineFor(step), step && words().hints[device][step], meant && words().meanings[meant]);
   nameStations();
 }
 
@@ -205,7 +215,9 @@ function layoutStations() {
 function chooseFraming() {
   const total = stations.reduce((sum, s) => sum + s.width, 0) + (isPortrait() ? 0.16 : 0.84);
   const tallest = Math.max(...stations.map((s) => s.shape.height)) + STAND_TOP;
-  const target = new THREE.Vector3(0, tallest * 0.46, 0);
+  // Aimed a little below the middle of the pots, so the stands and their
+  // names sit above the words at the bottom.
+  const target = new THREE.Vector3(0, tallest * (isPortrait() ? 0.46 : 0.22), 0);
   return isPortrait()
     ? frameCamera(camera, target, total, tallest, 0.94, 0.3)
     : frameCamera(camera, target, total, tallest, 0.74, 0.5);
@@ -310,8 +322,10 @@ function worldPerPixel() {
 // the next line.
 async function still() {
   setState('still');
+  mean('still', 0.3);
   await moveCamera(shardsFraming(), 3.2);
-  await new Promise((r) => setTimeout(r, 900));
+  // Time enough to read the line before the gathering begins.
+  await new Promise((r) => setTimeout(r, 1600));
   if (state !== 'still') return;
   setState('gather');
   mend.begin(chosen.seed);
@@ -441,6 +455,7 @@ async function whole() {
   setState('gold');
   disableOrbit();
   hush();
+  mean('gold', 0.6);
   againButton.hide();
   const pot = drop.pot;
   for (const s of drop.shards) s.mesh.visible = false;
@@ -538,6 +553,9 @@ function keep() {
   audio.rin();
   saveButton.show();
   againButton.show();
+  // Last of all, what the whole ritual means.
+  clearTimeout(closingTimer);
+  closingTimer = setTimeout(() => state === 'keep' && mean('closing'), 9000);
 }
 
 async function save() {
@@ -576,6 +594,8 @@ async function again() {
   againButton.hide();
   saveButton.hide();
   hush();
+  clearTimeout(closingTimer);
+  mean(null);
   await ui.close();
   disableOrbit();
   trace.end();
@@ -650,6 +670,7 @@ function endDrag() {
   const result = drop.release();
   if (result === 'drop') {
     setState('fall');
+    mean(null); // the break, and the silence after it, have no words
     againButton.hide();
   } else if (result === 'settle-back') {
     say('lift', 0.6);

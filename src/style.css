@@ -104,7 +104,7 @@ canvas {
   white-space: nowrap;
 }
 
-/* The step's line, and beneath it a small how-to. */
+/* What the step means, then the step's line, and beneath it a small how-to. */
 .guide {
   position: fixed;
   left: 50%;
@@ -117,6 +117,43 @@ canvas {
   gap: 8px;
   text-align: center;
   pointer-events: none;
+}
+.meaning {
+  max-width: 30em;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.03em;
+  color: var(--gold);
+  text-shadow: var(--text-shadow);
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.meaning:lang(en) {
+  font-style: italic;
+}
+.meaning:lang(ja) {
+  font-size: 16px;
+  letter-spacing: 0.08em;
+}
+.meaning.visible {
+  opacity: 1;
+}
+/* The last line in Keep: the meaning of the whole ritual. */
+.meaning.closing {
+  font-size: 20px;
+}
+.meaning.closing:lang(ja) {
+  font-size: 18px;
+}
+/* A short hairline between the meaning and the step's line. */
+.meaning::after {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 1.5px;
+  margin: 10px auto 2px;
+  background: var(--gold-dim);
 }
 .prompt {
   font-size: 21px;
@@ -385,5 +422,17 @@ canvas {
   }
   .hint {
     font-size: 14px;
+  }
+  .meaning {
+    font-size: 16px;
+  }
+  .meaning:lang(ja) {
+    font-size: 15px;
+  }
+  .meaning.closing {
+    font-size: 18px;
+  }
+  .meaning.closing:lang(ja) {
+    font-size: 16px;
   }
 }

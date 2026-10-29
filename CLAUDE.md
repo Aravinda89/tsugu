@@ -24,7 +24,7 @@ This is a portfolio pet project and must deploy for free (GitHub Pages).
    - 茶碗 chawan (Tamba): tea bowl with a foot ring, low and wide
    - Each stand has a small name beneath it while choosing (壺 · storage jar, or 壺 · つぼ in Japanese).
 2. **Lift and drop.** The user drags the pot upward, and releasing drops it onto the floor. A higher lift means a harder impact and more pieces, within limits.
-3. **Stillness.** After the shards settle, there are about 3 seconds of silence before a subtle prompt appears.
+3. **Stillness.** After the shards settle, there are about 5 seconds of quiet, with only the Still meaning line, before a subtle prompt appears.
 4. **Gather.** The user taps a shard, and it lifts and floats back to its place on the pot with a smooth ease.
    - There is no dragging and no rotating of pieces; this is not a jigsaw puzzle.
    - The user chooses the order.
@@ -37,6 +37,10 @@ This is a portfolio pet project and must deploy for free (GitHub Pages).
 UI text per step is one short line, such as "Lift the pot" or "Gather the pieces", plus one small how-to hint beneath it. There are no paragraphs.
 - **Hint wording:** per device, from `HINTS` in `main.js`, e.g. "Tap a piece to send it home · drag to look around · pinch to zoom".
 - **Hint lifetime:** it stays for the whole step, while the main line fades after the first action. The user asked for instructions in every step.
+- **Meaning line:** above the prompt, one plain sentence on what the step means, for visitors new to kintsugi (`meanings` in `i18n.js`, shown by `mean()` in `main.js`).
+  - It stays through the step, and also covers Still (after the break) and Gold (while the lacquer runs). It fades during the fall.
+  - In Keep, about 9 s after the mei, it gives way to a larger closing line on the whole ritual: "We all break sometimes. Mended with care, we carry on."
+  - English is in Cormorant Garamond italic, and Japanese is upright.
 
 ---
 
@@ -239,7 +243,7 @@ Do one phase at a time, and stop after each one so I can test it in the browser 
   - uneven pot shapes
   - irregular gold width
   - pieces may return with a tiny misalignment
-- Little text: one line and one how-to hint per step. Don't explain kintsugi inside the experience, except for one optional line at the very end.
+- Little text: per step, one plain line of meaning, one line and one how-to hint. The meaning lines explain kintsugi and wabi-sabi in a few simple words, never a paragraph. One closing line gives the meaning of the whole ritual.
 - Every visible word exists in English and Japanese (`src/i18n.js`, with the same keys in both; a test checks this).
 
 ## Art direction (from the user's mockup)

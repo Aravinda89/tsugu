@@ -1,5 +1,5 @@
-// Minimal prompts and buttons: one short line and one how-to per step,
-// icon-only pills. Labels come from `label(key)` so they follow the language.
+// Minimal prompts and buttons: per step, one plain line on what it means,
+// one short line and one how-to; icon-only pills. Labels come from `label(key)` so they follow the language.
 
 const ICONS = {
   // An ensō left open, with a small turn: begin again.
@@ -31,6 +31,7 @@ export function createUI(root, { label }) {
     </div>
     <div class="corner"></div>
     <div class="guide">
+      <div class="meaning"></div>
       <div class="prompt" role="status" aria-live="polite"></div>
       <div class="hint"></div>
     </div>
@@ -40,6 +41,7 @@ export function createUI(root, { label }) {
   `,
   );
 
+  const meaning = root.querySelector('.meaning');
   const prompt = root.querySelector('.prompt');
   const hint = root.querySelector('.hint');
   const sub = root.querySelector('.sub');
@@ -48,6 +50,7 @@ export function createUI(root, { label }) {
   const view = root.querySelector('.view');
   const curtain = root.querySelector('.curtain');
   const labelled = []; // [element, key] pairs, relabelled when the language changes
+  const meaningRef = { id: 0 };
   const promptRef = { id: 0 };
   const hintRef = { id: 0 };
 
@@ -67,26 +70,38 @@ export function createUI(root, { label }) {
   }
 
   // Fades a line out, then the new one in.
-  function fadeTo(el, text, delay, timerRef) {
+  function fadeTo(el, text, delay, timerRef, beforeShow) {
     clearTimeout(timerRef.id);
     el.classList.remove('visible');
     if (!text) return;
     timerRef.id = setTimeout(() => {
+      beforeShow?.();
       el.textContent = text;
       el.classList.add('visible');
     }, 900 + delay * 1000);
   }
 
   return {
+    // Above the step's line: what the step means, in a few plain words. It
+    // stays through the step; `closing` is the last, larger line in Keep.
+    setMeaning(text, delay = 0, { closing = false } = {}) {
+      const showing = meaning.classList.contains('visible');
+      if (showing && text === meaning.textContent) return clearTimeout(meaningRef.id);
+      // A line already showing fades out fully before the next comes in.
+      fadeTo(meaning, text, showing ? Math.max(delay, 0.5) : delay, meaningRef, () =>
+        meaning.classList.toggle('closing', closing),
+      );
+    },
     setPrompt: (text, delay = 0) => fadeTo(prompt, text, delay, promptRef),
     // The small how-to under the step's line; stays until the step changes.
     setHint: (text, delay = 0) => fadeTo(hint, text, delay, hintRef),
     setSubtitle: (text) => (sub.textContent = text),
 
     // Swaps the words in place (a language change), without the fade.
-    swapText(promptText, hintText) {
+    swapText(promptText, hintText, meaningText) {
       if (prompt.classList.contains('visible') && promptText) prompt.textContent = promptText;
       if (hint.classList.contains('visible') && hintText) hint.textContent = hintText;
+      if (meaning.classList.contains('visible') && meaningText) meaning.textContent = meaningText;
     },
 
     relabel() {
