@@ -10,6 +10,9 @@ const ICONS = {
   zoomIn: '<svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" /></svg>',
   zoomOut: '<svg viewBox="0 0 16 16"><path d="M3 8h10" /></svg>',
   recentre: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" /><circle cx="8" cy="8" r="1.2" /></svg>',
+  // Arcs with an arrowhead: walk around the pot.
+  turnLeft: '<svg viewBox="0 0 16 16"><path d="M13 9.5C12 12 10.2 13 8 13 5 13 3 10.8 3 8" /><path d="M1.2 9.6 3 7.6l1.9 2" /><path d="M5 4.2C5.9 3.4 6.9 3 8 3c1.6 0 3 .7 3.9 1.9" /></svg>',
+  turnRight: '<svg viewBox="0 0 16 16"><path d="M3 9.5C4 12 5.8 13 8 13c3 0 5-2.2 5-5" /><path d="M14.8 9.6 13 7.6l-1.9 2" /><path d="M11 4.2C10.1 3.4 9.1 3 8 3 6.4 3 5 3.7 4.1 4.9" /></svg>',
 };
 
 export function createUI(root) {
@@ -23,7 +26,10 @@ export function createUI(root) {
       <span class="rule"></span>
       <span class="sub">Tsugu · mend &amp; carry on</span>
     </div>
-    <div class="prompt" role="status" aria-live="polite"></div>
+    <div class="guide">
+      <div class="prompt" role="status" aria-live="polite"></div>
+      <div class="hint"></div>
+    </div>
     <div class="actions"></div>
     <div class="view"></div>
     <div class="curtain"></div>
@@ -31,17 +37,32 @@ export function createUI(root) {
   );
 
   const prompt = root.querySelector('.prompt');
+  const hint = root.querySelector('.hint');
   const actions = root.querySelector('.actions');
   const view = root.querySelector('.view');
   const curtain = root.querySelector('.curtain');
   let promptTimer = 0;
+  let hintTimer = 0;
 
   return {
-    // Zoom in, zoom out and recentre, at the right edge.
-    viewControls({ zoomIn, zoomOut, recentre }) {
+    // The small how-to under the step's line; stays until the step changes.
+    setHint(text, delay = 0) {
+      clearTimeout(hintTimer);
+      hint.classList.remove('visible');
+      if (!text) return;
+      hintTimer = setTimeout(() => {
+        hint.textContent = text;
+        hint.classList.add('visible');
+      }, 900 + delay * 1000);
+    },
+
+    // Zoom, turn around the pot, and recentre, at the right edge.
+    viewControls({ zoomIn, zoomOut, turnLeft, turnRight, recentre }) {
       for (const [icon, label, onClick] of [
         ['zoomIn', 'Closer', zoomIn],
         ['zoomOut', 'Further', zoomOut],
+        ['turnLeft', 'Turn left', turnLeft],
+        ['turnRight', 'Turn right', turnRight],
         ['recentre', 'Recentre', recentre],
       ]) {
         const el = document.createElement('button');

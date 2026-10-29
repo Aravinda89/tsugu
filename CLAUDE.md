@@ -33,7 +33,9 @@ This is a portfolio pet project and must deploy for free (GitHub Pages).
    - "Save" downloads a PNG.
    - "Again" returns to step 1.
 
-UI text is at most one short line per step, such as "Lift the pot" or "Gather the pieces". There are no paragraphs.
+UI text per step is one short line, such as "Lift the pot" or "Gather the pieces", plus one small how-to hint beneath it. There are no paragraphs.
+- **Hint wording:** per device, from `HINTS` in `main.js`, e.g. "Tap a piece to send it home · drag to look around · pinch to zoom".
+- **Hint lifetime:** it stays for the whole step, while the main line fades after the first action. The user asked for instructions in every step.
 
 ---
 
@@ -157,7 +159,11 @@ It must run smoothly on mid-range phones.
     - In Gather, a drag orbits and a short tap picks a piece.
     - In Trace, a press on the pot paints, and a press on the background orbits.
   - **Camera controls:**
-    - One finger or left mouse orbits; two fingers or right mouse pans (held near the pot); pinch or wheel zooms toward the pointer.
+    - **Turning:** one finger, left mouse or right mouse orbits. Right-drag turns anywhere, even over the pot while tracing.
+    - **Sliding:** two fingers, shift-drag or middle mouse pans, held near the pot.
+    - **Zooming:** pinch or wheel zooms toward the pointer.
+    - **Keyboard:** ← → turn, ↑ ↓ tilt, + / − zoom, 0 recentres.
+    - **Buttons:** ◁ ▷ at the right edge also turn the view.
     - A double-tap on the background recentres.
     - ＋ / − / ◎ buttons at the right edge do the same.
 
@@ -211,7 +217,7 @@ Do one phase at a time, and stop after each one so I can test it in the browser 
   - uneven pot shapes
   - irregular gold width
   - pieces may return with a tiny misalignment
-- Almost no text. Don't explain kintsugi inside the experience, except for one optional line at the very end.
+- Little text: one line and one how-to hint per step. Don't explain kintsugi inside the experience, except for one optional line at the very end.
 
 ## Art direction (from the user's mockup)
 - **Mood:** a low-key studio still life.

@@ -55,14 +55,37 @@ controls.enablePan = true;
 controls.screenSpacePanning = true;
 controls.panSpeed = 0.7;
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+// Right-drag turns anywhere (even over the pot while tracing); shift- or
+// middle-drag slides.
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
 controls.minPolarAngle = THREE.MathUtils.degToRad(35);
 controls.maxPolarAngle = THREE.MathUtils.degToRad(86);
 const orbitHome = { position: new THREE.Vector3(), target: new THREE.Vector3() };
 const viewButtons = ui.viewControls({
   zoomIn: () => zoomBy(0.72),
   zoomOut: () => zoomBy(1.38),
+  turnLeft: () => turnBy(Math.PI / 4),
+  turnRight: () => turnBy(-Math.PI / 4),
   recentre,
 });
+
+// A small how-to under each step's line, worded for fingers or a mouse.
+const touch = matchMedia('(pointer: coarse)').matches;
+const HINTS = touch
+  ? {
+      choose: 'Tap a pot to choose it',
+      lift: 'Press on the pot, slide your finger up, then let go',
+      gather: 'Tap a piece to send it home · drag to look around · pinch to zoom',
+      trace: 'Draw along the dark lines · drag beside the pot to turn · ✦ gilds the rest · ✓ done',
+      keep: 'Drag to look around · ↓ saves a picture · ↺ begins again',
+    }
+  : {
+      choose: 'Click a pot to choose it',
+      lift: 'Press on the pot, drag upwards, then let go',
+      gather: 'Click a piece to send it home · drag to look around · scroll to zoom',
+      trace: 'Draw along the dark lines · right-drag to turn · scroll to zoom · ✦ gilds the rest · ✓ done',
+      keep: 'Drag to look around · scroll to zoom · ↓ saves a picture · ↺ begins again',
+    };
 
 let gold = null;
 let finishTimer = 0;
@@ -200,6 +223,7 @@ async function choose(station) {
   hovered = null;
   renderer.domElement.style.cursor = '';
   ui.setPrompt(null);
+  ui.setHint(null);
 
   for (const other of stations) {
     if (other !== station) fadeAway(other, Math.sign(other.group.position.x - station.group.position.x));
@@ -216,6 +240,7 @@ async function choose(station) {
   setState('lift');
   drop.begin(station);
   ui.setPrompt('Lift the pot', -0.6);
+  ui.setHint(HINTS.lift, -0.3);
   againButton.show();
   busy = false;
 }
@@ -240,6 +265,7 @@ async function still() {
   // Walk around the pieces to find them all; a tap still picks one.
   enableOrbit({ minPolar: 12 });
   ui.setPrompt('Gather the pieces', -0.6);
+  ui.setHint(HINTS.gather, -0.3);
   againButton.show();
 }
 
@@ -288,6 +314,58 @@ function zoomBy(factor) {
   });
 }
 
+// The turn buttons and arrow keys: walk around the pot.
+const UP = new THREE.Vector3(0, 1, 0);
+function turnBy(angle) {
+  if (!controls.enabled) return;
+  const offset = camera.position.clone().sub(controls.target);
+  let turned = 0;
+  tween({
+    duration: 0.7,
+    easing: ease.inOutSine,
+    onUpdate: (k) => {
+      offset.applyAxisAngle(UP, angle * k - turned);
+      turned = angle * k;
+      camera.position.copy(controls.target).add(offset);
+    },
+  });
+}
+
+// Up and down arrows: look more from above, or more from the side.
+function tiltBy(delta) {
+  if (!controls.enabled) return;
+  const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  const from = s.phi;
+  const to = THREE.MathUtils.clamp(from + delta, controls.minPolarAngle, controls.maxPolarAngle);
+  const v = new THREE.Vector3();
+  tween({
+    duration: 0.5,
+    easing: ease.inOutSine,
+    onUpdate: (k) => {
+      s.phi = lerp(from, to, k);
+      camera.position.copy(controls.target).add(v.setFromSpherical(s));
+    },
+  });
+}
+
+window.addEventListener('keydown', (e) => {
+  if (!controls.enabled || e.altKey || e.ctrlKey || e.metaKey) return;
+  const keys = {
+    ArrowLeft: () => turnBy(Math.PI / 8),
+    ArrowRight: () => turnBy(-Math.PI / 8),
+    ArrowUp: () => tiltBy(-0.18),
+    ArrowDown: () => tiltBy(0.18),
+    '+': () => zoomBy(0.8),
+    '=': () => zoomBy(0.8),
+    '-': () => zoomBy(1.25),
+    0: recentre,
+  };
+  const action = keys[e.key];
+  if (!action) return;
+  e.preventDefault();
+  action();
+});
+
 // Back to the view this step began with.
 async function recentre() {
   if (!controls.enabled || cameraMoving) return;
@@ -309,6 +387,7 @@ async function recentre() {
 async function whole() {
   setState('gold');
   disableOrbit();
+  ui.setHint(null);
   againButton.hide();
   const pot = drop.pot;
   for (const s of drop.shards) s.mesh.visible = false;
@@ -334,13 +413,15 @@ async function whole() {
   setState('trace');
   enableOrbit({ minPolar: 20 });
   ui.setPrompt('Trace the gold', -0.6);
+  ui.setHint(HINTS.trace, -0.3);
   gildButton.show();
   doneButton.show();
 }
 
 // A stroke on the pot lays gold; anywhere else turns the view.
 function startTrace(e) {
-  if (state !== 'trace' || e.target !== renderer.domElement || !e.isPrimary) return;
+  // Only the main button (or a finger) paints; right-drag always turns.
+  if (state !== 'trace' || e.target !== renderer.domElement || !e.isPrimary || e.button !== 0) return;
   if (!trace.start(e, drop.pot, gold)) return;
   clearTimeout(finishTimer);
   controls.enabled = false; // this press paints; OrbitControls must not see it
@@ -362,6 +443,8 @@ async function gildRest() {
   if (state !== 'trace') return;
   setState('gold');
   hideTraceButtons();
+  ui.setPrompt(null);
+  ui.setHint(null);
   await tween({ duration: 2.8, easing: ease.inOutSine, onUpdate: (k) => (gold.gild = k) });
   if (state === 'gold') keep();
 }
@@ -385,6 +468,7 @@ function keep() {
   chosen.group.attach(drop.pot);
   enableOrbit();
   ui.setPrompt(meiFor(chosen.seed).line, -0.4);
+  ui.setHint(HINTS.keep, -0.1);
   saveButton.show();
   againButton.show();
 }
@@ -425,6 +509,7 @@ async function again() {
   againButton.hide();
   saveButton.hide();
   ui.setPrompt(null);
+  ui.setHint(null);
   await ui.close();
   disableOrbit();
   trace.end();
@@ -440,6 +525,7 @@ async function again() {
   setState('choose');
   ui.open();
   ui.setPrompt('Choose a pot', 0.4);
+  ui.setHint(HINTS.choose, 0.7);
   busy = false;
 }
 
@@ -484,6 +570,7 @@ canvas.addEventListener('pointerdown', (e) => {
   down = { x: e.clientX, y: e.clientY, t: performance.now() };
   if (state === 'lift' && !busy && pick(e) === chosen && drop.grab(e, worldPerPixel())) {
     ui.setPrompt(null);
+    ui.setHint(null);
     try {
       canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -499,6 +586,7 @@ function endDrag() {
     againButton.hide();
   } else if (result === 'settle-back') {
     ui.setPrompt('Lift the pot', 0.6);
+    ui.setHint(HINTS.lift, 0.9);
   }
 }
 
@@ -628,6 +716,7 @@ if (import.meta.env.DEV) console.debug(`[tsugu] scene built in ${Math.round(perf
 requestAnimationFrame(() => {
   ui.open();
   ui.setPrompt('Choose a pot', 0.8);
+  ui.setHint(HINTS.choose, 1.1);
   // Fetch the physics engine quietly while the visitor chooses.
   setTimeout(loadPhysics, 1200);
 });

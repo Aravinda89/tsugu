@@ -104,22 +104,44 @@ canvas {
   white-space: nowrap;
 }
 
-.prompt {
+/* The step's line, and beneath it a small how-to. */
+.guide {
   position: fixed;
   left: 50%;
-  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 74px);
+  bottom: calc(max(26px, env(safe-area-inset-bottom)) + 62px);
   transform: translateX(-50%);
+  width: min(92vw, 680px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  pointer-events: none;
+}
+.prompt {
   font-size: 21px;
   font-weight: 600;
   letter-spacing: 0.18em;
   color: var(--gold);
   text-shadow: var(--text-shadow);
   white-space: nowrap;
-  pointer-events: none;
   opacity: 0;
   transition: opacity 1.2s ease;
 }
 .prompt.visible {
+  opacity: 1;
+}
+.hint {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--gold-dim);
+  text-shadow: var(--text-shadow);
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+.hint.visible {
   opacity: 1;
 }
 
@@ -279,5 +301,8 @@ canvas {
   .prompt {
     font-size: 19px;
     letter-spacing: 0.14em;
+  }
+  .hint {
+    font-size: 14px;
   }
 }
